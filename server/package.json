@@ -1,0 +1,39 @@
+{
+  "name": "flip-server",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc -p .",
+    "typecheck": "tsc -p . --noEmit",
+    "test": "vitest run",
+    "keygen": "tsx src/scripts/keygen.ts",
+    "admin": "tsx src/scripts/admin.ts",
+    "verify-oracle": "tsx src/scripts/verifyOracle.ts",
+    "demo": "DEMO=true tsx src/index.ts"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.3.1",
+    "@fastify/static": "^10.1.8",
+    "@fastify/websocket": "^11.3.4",
+    "@pump-fun/pump-sdk": "^4.3.1",
+    "@pump-fun/pump-swap-sdk": "^2.2.0",
+    "@solana/spl-token": "^0.4.15",
+    "@solana/web3.js": "^1.99.0",
+    "better-sqlite3": "^13.0.3",
+    "bs58": "^6.0.0",
+    "dotenv": "^18.0.9",
+    "fastify": "^5.12.7",
+    "tweetnacl": "^1.0.3",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.5"
+  },
+  "type": "module",
+  "private": true
+}

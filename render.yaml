@@ -1,0 +1,37 @@
+# One-click deploy on Render: New + > Blueprint > pick this repo.
+# The SQLite book lives on the attached disk, so the service needs a paid instance (Starter or up).
+services:
+  - type: web
+    name: flip
+    runtime: node
+    plan: starter
+    buildCommand: npm run install:all && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/config
+    disk:
+      name: flip-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DB_PATH
+        value: /var/data/flip.db
+      - key: STATIC_DIR
+        value: ../web/dist
+      - key: REAL_ENABLED
+        value: "false"
+      - key: BRAND_NAME
+        value: flip
+      - key: TOKEN_TICKER
+        value: FLIP
+      # Paste your Helius (or other paid) RPC URL in the Render dashboard.
+      - key: RPC_URL
+        sync: false
+      # Same RPC, used by the browser for deposits. Set before the first build.
+      - key: VITE_RPC_URL
+        sync: false
+      - key: ADMIN_KEY
+        generateValue: true
+      - key: TOKEN_MINT
+        sync: false
