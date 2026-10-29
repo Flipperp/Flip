@@ -1,20 +1,26 @@
 # Deploy on Render: New + > Blueprint > pick this repo.
-# Free plan: Practice mode on live prices. The free plan has no persistent disk, so paper balances
-# reset when the service restarts, and it sleeps after ~15 min idle (first load then takes ~1 min).
-# For real money: switch to plan: starter, add a disk at /var/data and set DB_PATH=/var/data/flip.db.
+# Starter plan with a persistent disk, because real-money balances live in the database file.
+# Ships with REAL_ENABLED=false (Practice on live prices). To turn on real money, set in the
+# Render dashboard > Environment: VAULT_SECRET (private key of a fresh wallet) and REAL_ENABLED=true.
 services:
   - type: web
     name: flip
     runtime: node
-    plan: free
+    plan: starter
     buildCommand: npm run install:all && npm run build
     startCommand: npm start
     healthCheckPath: /api/config
+    disk:
+      name: flip-data
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
       - key: NODE_VERSION
         value: "22"
       - key: DB_PATH
-        value: ./data/flip.db
+        value: /var/data/flip.db
+      - key: PERSISTENT_DB
+        value: "true"
       - key: STATIC_DIR
         value: ../web/dist
       - key: REAL_ENABLED
@@ -23,8 +29,7 @@ services:
         value: flip
       - key: TOKEN_TICKER
         value: FLIP
-      # Public RPC works for Practice mode but is rate limited. Swap in a Helius URL in the
-      # Render dashboard (Environment tab) for reliability.
+      # Public RPC works but is rate limited; swap in a Helius URL for real money.
       - key: RPC_URL
         value: https://api.mainnet-beta.solana.com
       - key: VITE_RPC_URL
@@ -33,3 +38,18 @@ services:
         value: "30000"
       - key: ADMIN_KEY
         generateValue: true
+      # Private key (base58) of a NEW wallet used only as the vault. Set it in the dashboard.
+      - key: VAULT_SECRET
+        sync: false
+      # Private key of the wallet that launches $FLIP on pump.fun (creator fees). Optional for now.
+      - key: CREATOR_SECRET
+        sync: false
+      - key: TOKEN_MINT
+        sync: false
+      # Start small. Raise once real trading has run cleanly for a while.
+      - key: MAX_SIDE_SOL
+        value: "1"
+      - key: MAX_WITHDRAW_SOL
+        value: "5"
+      - key: DAILY_WITHDRAW_SOL
+        value: "10"

@@ -26,6 +26,13 @@ async function main() {
   const vault = loadKeypair(cfg.vaultSecret);
   const creator = loadKeypair(cfg.creatorSecret);
   if (cfg.realEnabled && !vault) throw new Error("REAL_ENABLED=true requires VAULT_SECRET");
+  // Real balances live in the database. On ephemeral storage a restart would wipe every balance
+  // while the SOL stays in the vault, so refuse to start unless storage is declared persistent.
+  if (cfg.realEnabled && process.env.PERSISTENT_DB !== "true") {
+    throw new Error("REAL_ENABLED=true requires PERSISTENT_DB=true and DB_PATH on a persistent disk");
+  }
+  if (cfg.realEnabled && !cfg.adminKey) throw new Error("REAL_ENABLED=true requires ADMIN_KEY");
+  if (vault) console.log(`[vault] ${vault.publicKey.toBase58()}`);
   if (vault && creator && vault.publicKey.equals(creator.publicKey)) throw new Error("Vault and creator wallets must be different");
 
   const oracle = new ChainOracle(conn, db, prices, {
