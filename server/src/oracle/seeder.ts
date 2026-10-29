@@ -9,7 +9,7 @@ export class MarketSeeder {
   public lastError: string | null = null;
   private tried = new Map<string, number>();
 
-  constructor(private oracle: ChainOracle, private opts: { everyMs: number; seedMints: string[]; maxPerRun: number }) {}
+  constructor(private oracle: ChainOracle, private opts: { everyMs: number; seedMints: string[]; maxPerRun: number; gapMs?: number }) {}
 
   start() {
     const loop = async () => {
@@ -49,6 +49,8 @@ export class MarketSeeder {
       this.tried.set(m, now);
       n++;
       await this.oracle.resolve(m).catch(() => {});
+      // Space lookups out so a public RPC's rate limit isn't hit.
+      if (this.opts.gapMs) await new Promise((r) => setTimeout(r, this.opts.gapMs));
     }
   }
 }

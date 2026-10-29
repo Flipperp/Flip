@@ -1,22 +1,20 @@
-# One-click deploy on Render: New + > Blueprint > pick this repo.
-# The SQLite book lives on the attached disk, so the service needs a paid instance (Starter or up).
+# Deploy on Render: New + > Blueprint > pick this repo.
+# Free plan: Practice mode on live prices. The free plan has no persistent disk, so paper balances
+# reset when the service restarts, and it sleeps after ~15 min idle (first load then takes ~1 min).
+# For real money: switch to plan: starter, add a disk at /var/data and set DB_PATH=/var/data/flip.db.
 services:
   - type: web
     name: flip
     runtime: node
-    plan: starter
+    plan: free
     buildCommand: npm run install:all && npm run build
     startCommand: npm start
     healthCheckPath: /api/config
-    disk:
-      name: flip-data
-      mountPath: /var/data
-      sizeGB: 1
     envVars:
       - key: NODE_VERSION
         value: "22"
       - key: DB_PATH
-        value: /var/data/flip.db
+        value: ./data/flip.db
       - key: STATIC_DIR
         value: ../web/dist
       - key: REAL_ENABLED
@@ -25,13 +23,13 @@ services:
         value: flip
       - key: TOKEN_TICKER
         value: FLIP
-      # Paste your Helius (or other paid) RPC URL in the Render dashboard.
+      # Public RPC works for Practice mode but is rate limited. Swap in a Helius URL in the
+      # Render dashboard (Environment tab) for reliability.
       - key: RPC_URL
-        sync: false
-      # Same RPC, used by the browser for deposits. Set before the first build.
+        value: https://api.mainnet-beta.solana.com
       - key: VITE_RPC_URL
-        sync: false
+        value: https://api.mainnet-beta.solana.com
+      - key: SLOW_POLL_MS
+        value: "30000"
       - key: ADMIN_KEY
         generateValue: true
-      - key: TOKEN_MINT
-        sync: false

@@ -42,7 +42,8 @@ async function main() {
   const seeder = new MarketSeeder(oracle, {
     everyMs: 10 * 60_000,
     seedMints: [cfg.tokenMint, ...(process.env.SEED_MINTS ?? "").split(",")].map((s) => s.trim()).filter(Boolean),
-    maxPerRun: 40,
+    maxPerRun: Number(process.env.SEED_PER_RUN ?? 30),
+    gapMs: Number(process.env.SEED_GAP_MS ?? 1500),
   });
   if (!demo && process.env.DISABLE_SEEDER !== "true") seeder.start();
 
