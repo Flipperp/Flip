@@ -94,7 +94,16 @@ export class ChainOracle {
   /** Find where a mint trades and add it as a market. Throws if unsupported. */
   async resolve(mint: string): Promise<MarketRow> {
     const existing = this.db.prepare("SELECT * FROM markets WHERE mint = ?").get(mint) as MarketRow | undefined;
-    if (existing) return existing;
+    if (existing) {
+      // listed = 2 means pruned for inactivity: asking for it again puts it back. listed = 0 is an
+      // admin delist and stays off.
+      if (existing.listed === 2) {
+        this.db.prepare("UPDATE markets SET listed = 1, last_viewed = ? WHERE mint = ?").run(Date.now(), mint);
+        this.hot.add(mint);
+        return { ...existing, listed: 1 };
+      }
+      return existing;
+    }
     const mintPk = new PublicKey(mint);
     const r = await this.discover(mintPk);
     const now = Date.now();

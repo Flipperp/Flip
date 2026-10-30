@@ -50,6 +50,14 @@ The pool's maximum-win check nets longs against shorts on the same coin. It uses
 
 Inverse sends 80% of both to its pool and nothing to holders.
 
+### New pairs
+
+The New pairs page streams every pump.fun launch and graduation from PumpPortal's public data feed (one websocket, `PUMP_FEED_URL`).
+- **Graduations are listed automatically** (`AUTO_LIST_GRADUATED`): each is read on-chain from its PumpSwap pool first, spaced out so a burst can't flood the RPC.
+- **Launches are listed when someone opens them.** They stay close-only until the curve holds `MIN_LIQ_SOL` of real SOL, because a thin curve is cheap to push around.
+- **Feed data is never a price.** Names and images are sanitized; prices always come from the coin's own curve or pool.
+- **Unwatched coins are pruned.** Markets nobody has viewed or traded for `PRUNE_AFTER_HOURS` (24) come off the polling list and come back the moment someone opens them. The project token, `SEED_MINTS` and Hyperliquid-linked coins are never pruned.
+
 ### Hyperliquid route
 
 A coin with the **HL perp** tag has two tabs in the ticket: **Hyperliquid** (the default) and **Flip pool**.

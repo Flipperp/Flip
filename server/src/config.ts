@@ -123,6 +123,16 @@ export const config = {
     slippage: num("HL_SLIPPAGE", 0.03),
   },
 
+  /** Live pump.fun launches and graduations (PumpPortal data feed). */
+  pumpFeed: {
+    enabled: bool("PUMP_FEED", true),
+    url: str("PUMP_FEED_URL", "wss://pumpportal.fun/api/data"),
+    /** Add coins to Flip automatically when they graduate to PumpSwap. */
+    autoListGraduated: bool("AUTO_LIST_GRADUATED", true),
+    /** Coins nobody views or trades for this long are taken off the polling list (re-added on demand). */
+    pruneAfterMs: num("PRUNE_AFTER_HOURS", 24) * 3600_000,
+  },
+
   paper: {
     faucetAmount: Math.round(5 * LAMPORTS),
     faucetCooldownMs: 24 * 3600_000,

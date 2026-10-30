@@ -6,6 +6,7 @@ import { useApp } from "./lib/store";
 import { short } from "./lib/format";
 import Trade, { TradeHome } from "./pages/Trade";
 import Markets from "./pages/Markets";
+import NewPairs from "./pages/NewPairs";
 import Portfolio from "./pages/Portfolio";
 import Pool from "./pages/Pool";
 import Holders from "./pages/Holders";
@@ -116,6 +117,7 @@ export default function App() {
         <nav className="nav" aria-label="Main">
           <NavLink to="/trade">Trade</NavLink>
           <NavLink to="/markets">Markets</NavLink>
+          <NavLink to="/new">New pairs</NavLink>
           <NavLink to="/portfolio">Portfolio</NavLink>
           <NavLink to="/pool">Pool</NavLink>
           <NavLink to="/holders">Holders</NavLink>
@@ -135,6 +137,7 @@ export default function App() {
           <Route path="/trade/:mint" element={<Trade />} />
           <Route path="/coin/:mint" element={<LegacyCoin />} />
           <Route path="/markets" element={<Markets />} />
+          <Route path="/new" element={<NewPairs />} />
           <Route path="/portfolio" element={<Portfolio />} />
           <Route path="/pool" element={<Pool />} />
           <Route path="/holders" element={<Holders />} />

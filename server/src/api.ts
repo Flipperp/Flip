@@ -13,6 +13,7 @@ import type { ChainOracle } from "./oracle/chainOracle.js";
 import type { HolderRewards } from "./chain/holders.js";
 import { fillPrice } from "./engine/pricing.js";
 import type { HlLink } from "./hl/link.js";
+import type { PumpFeed } from "./oracle/pumpFeed.js";
 
 export interface ApiDeps {
   cfg: Config;
@@ -26,6 +27,7 @@ export interface ApiDeps {
   staticDir?: string;
   /** Hyperliquid route, when enabled. */
   hl?: HlLink | null;
+  pumpFeed?: PumpFeed | null;
 }
 
 const modeSchema = z.enum(["real", "paper"]);
@@ -186,6 +188,25 @@ export async function buildApi(d: ApiDeps): Promise<FastifyInstance> {
         }
       : { enabled: false },
   }));
+
+  app.get("/api/new", async (req) => {
+    const f = d.pumpFeed;
+    if (!f) return { enabled: false, launches: [], graduations: [] };
+    const limit = Math.min(200, Number((req.query as any)?.limit) || 100);
+    const listed = (mint: string) => {
+      const m = engine.market(mint);
+      return m && m.listed === 1 ? true : false;
+    };
+    return {
+      enabled: true,
+      connected: f.connected,
+      launches: f.recent(limit).map((p) => ({ ...p, listed: listed(p.mint) })),
+      graduations: f.graduations(50).map((g) => {
+        const m = engine.market(g.mint);
+        return { ...g, listed: listed(g.mint), symbol: m?.symbol ?? null, name: m?.name ?? null, image: m?.image ?? null };
+      }),
+    };
+  });
 
   app.get("/api/hl", async () => {
     if (!d.hl) return { enabled: false, links: [] };

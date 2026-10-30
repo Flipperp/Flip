@@ -15,6 +15,8 @@ import { Auth } from "./auth.js";
 import { buildApi } from "./api.js";
 import { startDemo } from "./demo.js";
 import { HlLink, parseMap } from "./hl/link.js";
+import { PumpFeed } from "./oracle/pumpFeed.js";
+import { pruneMarkets } from "./oracle/prune.js";
 
 async function main() {
   const cfg = config;
@@ -73,6 +75,31 @@ async function main() {
   });
   if (!demo && process.env.DISABLE_SEEDER !== "true") seeder.start();
   hl?.start();
+
+  // Live pump.fun launches and graduations. Graduated coins are verified on-chain and listed.
+  const pumpFeed =
+    cfg.pumpFeed.enabled && !demo
+      ? new PumpFeed({
+          url: cfg.pumpFeed.url,
+          keep: 300,
+          autoListGraduated: cfg.pumpFeed.autoListGraduated,
+          resolveGapMs: 3000,
+          fetchImages: true,
+          resolve: (mint) => oracle.resolve(mint),
+        })
+      : null;
+  pumpFeed?.start();
+
+  const protectedMints = () =>
+    new Set([cfg.tokenMint, ...(process.env.SEED_MINTS ?? "").split(","), ...(hl?.mints ?? [])].map((s) => s.trim()).filter(Boolean));
+  const pruneTimer2 = setInterval(() => {
+    try {
+      const n = pruneMarkets(db, { olderThanMs: cfg.pumpFeed.pruneAfterMs, protect: protectedMints() });
+      if (n) console.log(`[prune] ${n} inactive markets off the polling list`);
+    } catch (e: any) {
+      console.error("[prune]", e?.message ?? e);
+    }
+  }, 10 * 60_000);
 
   // Settlement loop: auto-close max wins and liquidations every second.
   const tickTimer = setInterval(() => {
@@ -146,6 +173,7 @@ async function main() {
     solUsd: () => solUsd,
     staticDir: process.env.STATIC_DIR ?? "../web/dist",
     hl,
+    pumpFeed,
     status: () => ({
       hyperliquid: hl ? { error: hl.lastError, lastPoll: hl.lastPoll, builderValue: hl.builderValue, builderReady: hl.builderReady(), routable: hl.all().filter((l) => l.routable).map((l) => l.coin) } : null,
       oracle: { error: oracle.lastError, tracked: prices.mints().length },
@@ -154,6 +182,7 @@ async function main() {
       creatorFees: sweeper ? { error: sweeper.lastError, lastSweep: sweeper.lastSweep } : null,
       holders: tracker ? { error: tracker.lastError, count: tracker.lastCount } : null,
       seeder: { error: seeder.lastError },
+      pumpFeed: pumpFeed ? { connected: pumpFeed.connected, error: pumpFeed.lastError, lastMessageAt: pumpFeed.lastMessageAt, ...pumpFeed.counts } : null,
       audit: auditor.last,
     }),
   });
@@ -164,6 +193,8 @@ async function main() {
     clearInterval(tickTimer);
     clearInterval(solTimer);
     clearInterval(pruneTimer);
+    clearInterval(pruneTimer2);
+    pumpFeed?.stop();
     oracle.stop();
     seeder.stop();
     deposits?.stop();
