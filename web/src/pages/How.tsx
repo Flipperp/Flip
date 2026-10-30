@@ -78,6 +78,52 @@ export default function How() {
         </div>
       </dl>
 
+      {c.hl?.enabled && (
+        <>
+          <h2>Two routes: Hyperliquid or the Flip pool</h2>
+          <p className="lede">
+            Coins that also trade as a perp on Hyperliquid can go to Hyperliquid's order book from the same ticket. Coins without one trade against the Flip pool. Look for the HL perp tag.
+          </p>
+          <dl className="rules panel panel-body">
+            <div>
+              <dt>Your account, not ours</dt>
+              <dd>
+                Hyperliquid trades run on your own Hyperliquid account, in USDC. Flip never holds the funds. Connect an EVM wallet; Phantom's Ethereum address works, as do MetaMask and Rabby.
+              </dd>
+            </div>
+            <div>
+              <dt>Two signatures, once</dt>
+              <dd>
+                {c.hl.builder && (c.hl.builderFee ?? 0) > 0 ? `You approve Flip's fee cap (${((c.hl.builderFee ?? 0) / 1000).toFixed(3)}% per trade) and ` : "You approve "}
+                a trading key made in your browser. That key can open and close orders but Hyperliquid won't let it withdraw. Withdrawals always need your wallet.
+              </dd>
+            </div>
+            <div>
+              <dt>Fills</dt>
+              <dd>
+                Market orders fill on Hyperliquid's book within {((c.hl.slippage ?? 0.03) * 100).toFixed(0)}% of the mid price, or not at all. Positions use isolated margin, so a loss on one coin can't touch the rest of your account.
+              </dd>
+            </div>
+            <div>
+              <dt>Fees</dt>
+              <dd>
+                Hyperliquid's own trading fee, plus Flip's {((c.hl.builderFee ?? 0) / 1000).toFixed(3)}% on each fill. ${c.brand.ticker} holder tiers cut Flip's part by the same discount as the profit fee. Funding is paid or received hourly, as on any perp.
+              </dd>
+            </div>
+            <div>
+              <dt>Same coin, checked</dt>
+              <dd>
+                A ticker match isn't proof. Each link between a Solana coin and a Hyperliquid perp is set by hand and only routes while the coin's on-chain price and the perp's mark agree within {((c.hl.maxDivergence ?? 0.03) * 100).toFixed(0)}%. If they drift apart, or Hyperliquid stops answering, the route turns off.
+              </dd>
+            </div>
+            <div>
+              <dt>Funding your account</dt>
+              <dd>Deposit USDC on Arbitrum from the ticket. It's credited to the same address in about a minute. The bridge loses deposits under 5 USDC, so Flip won't send less.</dd>
+            </div>
+          </dl>
+        </>
+      )}
+
       <h2>Risks, plainly</h2>
       <ul className="risks panel panel-body" style={{ paddingLeft: 32 }}>
         <li>Memecoins move fast. At 2x, a 50% move against you takes your whole stake. At 10x, a 10% move does.</li>
@@ -86,6 +132,7 @@ export default function How() {
           This is a custodial service. Deposits sit in a hot wallet and the server keeps the book. Every balance change is logged and the book is checked against the vault continuously; if anything is out of place, trading and withdrawals stop.
         </li>
         <li>Pool depositors can lose money when traders win. The share price reflects open trades in real time.</li>
+        {c.hl?.enabled && <li>Hyperliquid trades are real USDC even in Practice mode. Perps can be liquidated, and funding costs add up on positions held for days.</li>}
         <li>Check that this kind of trading is legal where you live before using real money.</li>
       </ul>
     </div>

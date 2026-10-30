@@ -12,6 +12,7 @@ import { Auth, AuthError } from "./auth.js";
 import type { ChainOracle } from "./oracle/chainOracle.js";
 import type { HolderRewards } from "./chain/holders.js";
 import { fillPrice } from "./engine/pricing.js";
+import type { HlLink } from "./hl/link.js";
 
 export interface ApiDeps {
   cfg: Config;
@@ -23,6 +24,8 @@ export interface ApiDeps {
   status: () => Record<string, unknown>;
   solUsd: () => number;
   staticDir?: string;
+  /** Hyperliquid route, when enabled. */
+  hl?: HlLink | null;
 }
 
 const modeSchema = z.enum(["real", "paper"]);
@@ -99,6 +102,7 @@ export async function buildApi(d: ApiDeps): Promise<FastifyInstance> {
       roomLong: st.roomLong,
       roomShort: st.roomShort,
       sideCap: st.sideCap,
+      hl: d.hl?.view(m.mint) ?? null,
     };
   };
 
@@ -169,7 +173,23 @@ export async function buildApi(d: ApiDeps): Promise<FastifyInstance> {
     custody: { minDeposit: cfg.custody.minDeposit, maxWithdrawal: cfg.custody.maxWithdrawal, dailyWithdrawalPerWallet: cfg.custody.dailyWithdrawalPerWallet },
     solUsd: d.solUsd(),
     halted: { real: engine.halted("real"), paper: engine.halted("paper") },
+    hl: d.hl
+      ? {
+          enabled: true,
+          testnet: cfg.hl.testnet,
+          apiUrl: cfg.hl.apiUrl,
+          builder: cfg.hl.builder || null,
+          builderFee: cfg.hl.builder ? cfg.hl.builderFee : 0,
+          slippage: cfg.hl.slippage,
+          maxDivergence: cfg.hl.maxDivergence,
+        }
+      : { enabled: false },
   }));
+
+  app.get("/api/hl", async () => {
+    if (!d.hl) return { enabled: false, links: [] };
+    return { enabled: true, lastError: d.hl.lastError, lastPoll: d.hl.lastPoll, solMark: d.hl.solMark(), links: d.hl.all() };
+  });
 
   app.get("/api/markets", async (req) => {
     const mode = parseMode(req.query);
@@ -464,7 +484,7 @@ export async function buildApi(d: ApiDeps): Promise<FastifyInstance> {
         pool: { cash: pool.cash, nav: pool.nav, sharePrice: pool.sharePrice, outOnTrades: pool.outOnTrades, free: pool.free },
         markets: rows.map((m) => {
           const v = marketView(m, mode);
-          return { mint: v.mint, price: v.price, twap: v.twap, liquidity: v.liquidity, mcapSol: v.mcapSol, change1h: v.change1h, tradable: v.tradable, reason: v.reason, longOpen: v.longOpen, shortOpen: v.shortOpen, roomLong: v.roomLong, roomShort: v.roomShort };
+          return { mint: v.mint, price: v.price, twap: v.twap, liquidity: v.liquidity, mcapSol: v.mcapSol, change1h: v.change1h, tradable: v.tradable, reason: v.reason, longOpen: v.longOpen, shortOpen: v.shortOpen, roomLong: v.roomLong, roomShort: v.roomShort, hl: v.hl };
         }),
       });
     }

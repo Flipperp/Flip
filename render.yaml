@@ -53,3 +53,8 @@ services:
         value: "5"
       - key: DAILY_WITHDRAW_SOL
         value: "10"
+      # Hyperliquid route. Set HL_BUILDER to an EVM address you control to earn the builder fee.
+      - key: HL_BUILDER
+        sync: false
+      - key: HL_BUILDER_FEE
+        value: "50"

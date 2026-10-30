@@ -73,3 +73,15 @@ export const venueName: Record<string, string> = {
   raydium: "Raydium",
   jupiter: "Jupiter",
 };
+
+/** USD price with enough significant digits for memecoin perps. */
+export const usdPx = (p: number | null | undefined) => {
+  if (!p || !Number.isFinite(p)) return "–";
+  if (p >= 1000) return `$${p.toLocaleString(undefined, { maximumFractionDigits: 1 })}`;
+  if (p >= 1) return `$${p.toFixed(p >= 100 ? 2 : 4)}`;
+  return `$${Number(p.toPrecision(5))}`;
+};
+
+/** Dollar amount with cents. */
+export const usd2 = (n: number | null | undefined) =>
+  n === null || n === undefined || !Number.isFinite(n) ? "–" : `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;

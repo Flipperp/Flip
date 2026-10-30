@@ -1,27 +1,30 @@
 /* Layout: a trading terminal. Market bar on top, chart | trades | ticket, positions underneath. */
 :root {
-  --bg: #0a1216;
-  --surface: #0f1a1f;
-  --surface-2: #142228;
-  --surface-3: #1a2c33;
-  --line: #1d3037;
-  --line-2: #27404a;
-  --text: #e4eeed;
-  --muted: #7c9398;
-  --faint: #4f666c;
-  --brand: #72f0d5;
-  --brand-ink: #04231d;
-  --long: #2bd9a0;
-  --short: #f35a6e;
-  --long-bg: rgba(43, 217, 160, 0.12);
-  --short-bg: rgba(243, 90, 110, 0.12);
-  --long-ink: #032419;
+  /* Hyperliquid-style terminal: deep teal-black, mint accent, coral sells. */
+  --bg: #0f1a1f;
+  --surface: #1b2429;
+  --surface-2: #1f2b31;
+  --surface-3: #273035;
+  --line: #222e33;
+  --line-2: #2f3c42;
+  --text: #f6fefd;
+  --muted: #949e9c;
+  --faint: #5f6d70;
+  --brand: #50d2c1;
+  --brand-2: #97fce4;
+  --brand-ink: #04211c;
+  --brand-bg: rgba(80, 210, 193, 0.08);
+  --long: #1fa67d;
+  --short: #ed7088;
+  --long-bg: rgba(31, 166, 125, 0.14);
+  --short-bg: rgba(237, 112, 136, 0.13);
+  --long-ink: #04211c;
   --short-ink: #2b060c;
   --warn: #f5c451;
-  --r-lg: 10px;
-  --r: 6px;
-  --r-sm: 4px;
-  --ui: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --r-lg: 8px;
+  --r: 5px;
+  --r-sm: 3px;
+  --ui: "Inter", "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "Geist Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
   color-scheme: dark;
 }
@@ -227,7 +230,7 @@ small {
   border-bottom: 1px solid var(--line);
 }
 .banner-paper {
-  background: rgba(114, 240, 213, 0.07);
+  background: var(--brand-bg);
   color: var(--brand);
 }
 .banner-halt {
@@ -266,12 +269,13 @@ small {
   color: var(--brand-ink);
 }
 .btn-primary:hover:not(:disabled) {
-  background: #8ff5df;
+  background: var(--brand-2);
+  border-color: var(--brand-2);
 }
 .btn-long {
-  background: var(--long);
-  border-color: var(--long);
-  color: var(--long-ink);
+  background: var(--brand);
+  border-color: var(--brand);
+  color: var(--brand-ink);
 }
 .btn-short {
   background: var(--short);
@@ -279,10 +283,10 @@ small {
   color: var(--short-ink);
 }
 .btn-long:hover:not(:disabled) {
-  background: #4ae3b1;
+  background: var(--brand-2);
 }
 .btn-short:hover:not(:disabled) {
-  background: #f67384;
+  background: #f48ba0;
 }
 .btn-sm {
   padding: 3px 9px;
@@ -735,8 +739,8 @@ small {
   color: var(--muted);
 }
 .side-tabs button.on.long {
-  background: var(--long);
-  color: var(--long-ink);
+  background: var(--brand);
+  color: var(--brand-ink);
 }
 .side-tabs button.on.short {
   background: var(--short);
@@ -748,7 +752,8 @@ small {
 }
 .lev-row {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   gap: 6px;
 }
 .lev-row button {
@@ -763,7 +768,7 @@ small {
 .lev-row button.on {
   border-color: var(--brand);
   color: var(--brand);
-  background: rgba(114, 240, 213, 0.06);
+  background: var(--brand-bg);
 }
 .kv {
   display: flex;
@@ -1049,7 +1054,7 @@ input[type="range"] {
   margin-right: 5px;
 }
 .row-hi {
-  background: rgba(114, 240, 213, 0.06);
+  background: var(--brand-bg);
 }
 
 /* docs */
@@ -1224,6 +1229,13 @@ input[type="range"] {
   .chart-host {
     min-height: 300px;
   }
+  .chart-legend {
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+  .chart-legend .faint {
+    display: none;
+  }
   .rules {
     grid-template-columns: 1fr;
     gap: 2px 0;
@@ -1237,4 +1249,101 @@ input[type="range"] {
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* ---------- Hyperliquid route ---------- */
+.venue-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid var(--line);
+}
+.venue-tabs button {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  padding: 10px 8px 8px;
+  color: var(--muted);
+  font-weight: 600;
+  display: grid;
+  gap: 1px;
+  justify-items: center;
+}
+.venue-tabs button small {
+  font-weight: 400;
+  font-size: 10.5px;
+  color: var(--faint);
+}
+.venue-tabs button.on {
+  color: var(--text);
+  border-bottom-color: var(--brand);
+}
+.venue-tabs button.on small {
+  color: var(--brand);
+}
+.hl-ticket {
+  padding: 12px;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+.hl-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.hl-coin {
+  font-weight: 600;
+  font-size: 13.5px;
+}
+.hl-real {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: var(--r-sm);
+  color: var(--warn);
+  background: rgba(245, 196, 81, 0.1);
+}
+.hl-pitch {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.hl-steps {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+}
+.hl-steps li::marker {
+  color: var(--brand);
+  font-family: var(--mono);
+}
+.hl-acct h3 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.hl-funds {
+  display: grid;
+  gap: 8px;
+  margin-top: 6px;
+}
+.hl-venue {
+  background: var(--brand-bg);
+  color: var(--brand);
+}
+.link-btn {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 500;
+}
+.link-btn:hover {
+  color: var(--brand-2);
+}
+.spacer {
+  flex: 1;
 }

@@ -11,6 +11,7 @@
     "build:demo": "vite build --config vite.demo.config.ts"
   },
   "dependencies": {
+    "@nktkas/hyperliquid": "^0.33.3",
     "@solana/wallet-adapter-base": "^0.9.28",
     "@solana/wallet-adapter-react": "^0.15.40",
     "@solana/wallet-adapter-react-ui": "^0.9.40",
@@ -21,7 +22,8 @@
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-router-dom": "^7.18.5",
-    "tweetnacl": "^1.0.3"
+    "tweetnacl": "^1.0.3",
+    "viem": "^2.57.13"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",

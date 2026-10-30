@@ -99,6 +99,28 @@ export const config = {
     commitment: "confirmed" as const,
   },
 
+  /**
+   * Hyperliquid route: coins with a Hyperliquid perp can be traded on Hyperliquid's order book from
+   * the same ticket. Non-custodial; Flip earns a builder fee on routed volume.
+   */
+  hl: {
+    enabled: bool("HL_ENABLED", true),
+    testnet: bool("HL_TESTNET", false),
+    apiUrl: str("HL_API_URL", bool("HL_TESTNET", false) ? "https://api.hyperliquid-testnet.xyz" : "https://api.hyperliquid.xyz"),
+    /** EVM address that receives builder fees. Needs at least 100 USDC of perps account value on Hyperliquid. Empty = no fee. */
+    builder: str("HL_BUILDER").toLowerCase(),
+    /** Builder fee in tenths of a basis point (50 = 0.05%). Hyperliquid caps perps at 100 (0.1%). */
+    builderFee: Math.min(100, Math.max(0, Math.round(num("HL_BUILDER_FEE", 50)))),
+    /** Extra or overriding links, "mint:COIN[:mult]" comma separated. "mint:-" removes a default. */
+    map: str("HL_MAP"),
+    pollMs: num("HL_POLL_MS", 15_000),
+    /** A link only routes while the Solana price and the Hyperliquid mark are within this fraction. */
+    maxDivergence: num("HL_MAX_DIVERGENCE", 0.03),
+    confirmChecks: num("HL_CONFIRM_CHECKS", 2),
+    /** Slippage bound for market orders, as a fraction of mid. */
+    slippage: num("HL_SLIPPAGE", 0.03),
+  },
+
   paper: {
     faucetAmount: Math.round(5 * LAMPORTS),
     faucetCooldownMs: 24 * 3600_000,

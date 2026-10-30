@@ -25,6 +25,27 @@ export interface Config {
   custody: { minDeposit: number; maxWithdrawal: number; dailyWithdrawalPerWallet: number };
   solUsd: number;
   halted: Record<Mode, string | null>;
+  hl?: { enabled: boolean; testnet?: boolean; apiUrl?: string; builder?: string | null; builderFee?: number; slippage?: number; maxDivergence?: number };
+}
+
+export interface HlLink {
+  coin: string;
+  asset: number;
+  mult: number;
+  szDecimals: number;
+  maxLeverage: number;
+  onlyIsolated: boolean;
+  state: "verified" | "checking" | "price_mismatch" | "no_flip_price" | "not_listed" | "delisted";
+  routable: boolean;
+  markPx: number | null;
+  midPx: number | null;
+  funding: number | null;
+  openInterest: number | null;
+  dayNtlVlm: number | null;
+  prevDayPx: number | null;
+  markSol: number | null;
+  divergence: number | null;
+  checkedAt: number | null;
 }
 
 export interface Market {
@@ -46,6 +67,7 @@ export interface Market {
   roomLong: number;
   roomShort: number;
   sideCap?: number;
+  hl?: HlLink | null;
 }
 
 export interface PositionV {

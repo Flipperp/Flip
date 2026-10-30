@@ -1,12 +1,12 @@
 # Flip
 
-Long or short any Solana coin at 2x, 5x or 10x, filled instantly against a house pool. Built on the same model as useinverse.xyz, with a pump.fun token whose creator fees and trading fees pay holders.
+Long or short any Solana coin at 2x, 5x or 10x. Coins that also trade as a Hyperliquid perp route to Hyperliquid's order book from the same ticket: non-custodial, no pool on the other side, and Flip earns a builder fee. Everything else fills instantly against a house pool, on the same model as useinverse.xyz, with a pump.fun token whose creator fees and trading fees pay holders.
 
 ## Run it
 
 ```bash
 npm run install:all
-npm test            # 28 tests: engine math, solvency, auth, holder rewards, deposits
+npm test            # 44 tests: engine math, solvency, auth, holder rewards, deposits, Hyperliquid links and order math
 npm run demo        # http://localhost:8787 with simulated markets and bot traders
 ```
 
@@ -50,6 +50,27 @@ The pool's maximum-win check nets longs against shorts on the same coin. It uses
 
 Inverse sends 80% of both to its pool and nothing to holders.
 
+### Hyperliquid route
+
+A coin with the **HL perp** tag has two tabs in the ticket: **Hyperliquid** (the default) and **Flip pool**.
+
+- **Non-custodial.** Orders trade the user's own Hyperliquid account in USDC. Flip never holds the funds.
+- **Wallet.** Any injected EVM wallet works. Phantom's Ethereum address is a Hyperliquid account, and MetaMask and Rabby work too.
+- **One-time setup, two signatures, no gas.**
+  1. Approve Flip's builder fee cap (`approveBuilderFee`).
+  2. Approve a trading key generated in the browser (`approveAgent`, named "Flip").
+
+  The key signs orders without popups. Hyperliquid doesn't let agent keys withdraw, and deposits and withdrawals always go through the wallet.
+- **Orders.** Market orders are immediate-or-cancel limits at mid ± `HL_SLIPPAGE`. Positions use isolated margin at the chosen leverage. The minimum is $10 notional, which Hyperliquid enforces.
+- **Builder fee.** The fee (`HL_BUILDER_FEE`, in tenths of a basis point, default 50 = 0.05%) is added to every fill. $FLIP tiers cut it by the same discount as the profit fee.
+- **Deposits.** Deposits send USDC on Arbitrum to Hyperliquid's bridge from the ticket. The ticket refuses anything under 5 USDC, because the bridge loses it.
+- **Which coins route.** A coin routes only through an explicit mint → perp map (`server/src/hl/link.ts`, extend with `HL_MAP`), and only while the coin's on-chain price and the perp's mark agree within `HL_MAX_DIVERGENCE` (3%) on consecutive checks.
+  - A ticker match is never trusted on its own.
+  - The route turns off if the prices drift apart, the perp is delisted, or Hyperliquid stops answering.
+  - `/api/hl` shows every link and why it is on or off.
+
+Builder fees accrue in USDC on Hyperliquid, not in the SOL book. Claim them from the builder address through Hyperliquid's referral rewards. Routing them into the holder pot is a manual step for now.
+
 ### Holder moat
 
 1. **SOL yield for holders.** Every 24h, 80% of the holder pot is paid out by time-weighted balance. The other 20% rolls over to smooth payouts.
@@ -80,9 +101,25 @@ Inverse sends 80% of both to its pool and nothing to holders.
 6. **Go live with tight limits.** Fund the vault with about 0.1 SOL for fees, then set `REAL_ENABLED=true`.
    - Keep `MAX_SIDE_SOL` and `MAX_WITHDRAW_SOL` small at first.
    - Seed the pool yourself: deposit to the vault from your wallet, then use Pool → Add.
-7. **Run behind HTTPS** (Caddy or nginx) with `CORS_ORIGIN` set to your domain. Back up `data/flip.db` continuously, for example with Litestream.
+7. **Turn on builder fees.** Set `HL_BUILDER` to an EVM address you control. It needs at least 100 USDC of perps account value on Hyperliquid, or orders carrying the fee are rejected. Without it, the route still works with no fee.
+8. **Run behind HTTPS** (Caddy or nginx) with `CORS_ORIGIN` set to your domain. Back up `data/flip.db` continuously, for example with Litestream.
 
 ## What's verified and what isn't
+
+**Hyperliquid route.**
+
+- Signing is verified byte for byte against Hyperliquid's official Python SDK.
+  - This covers every action the browser signs: builder approval, agent approval, leverage, orders with the builder code, withdrawal, and spot→perps transfer.
+  - Reproduce with: `node web/scripts/hl-signing-capture.mjs > /tmp/hl.json && python3 scripts/hl_verify_signing.py /tmp/hl.json`.
+- The full UI flow passes in a headless browser against `scripts/mock_hyperliquid.py`. That covers connect, deposit, setup, long, close, and the builder fee being charged.
+  - The mock checks signatures with the official SDK's recovery code.
+  - Run it with `scripts/hl_e2e.py`.
+- Not yet run against Hyperliquid mainnet, because this sandbox can't reach it. Before launch:
+  - Check `/api/hl` on the live server and confirm the expected coins show `verified`.
+  - Place one minimum-size trade from a real wallet, including Phantom.
+  - Confirm Phantom can switch to Arbitrum for the deposit. If it can't, users can deposit at app.hyperliquid.xyz to the same address.
+
+**Pool route.**
 
 - **Verified.** Everything off-chain:
   - The full engine, with a 600-step randomized stress test: book conservation, reserves always covered.
@@ -101,4 +138,5 @@ Inverse sends 80% of both to its pool and nothing to holders.
 
 - **Custody.** This is custodial. The hot wallet key is the whole treasury, so if the server is compromised, users' funds are gone. Before real volume, keep the vault balance low and move excess to cold storage. An audit is worth considering.
 - **Pool risk.** The pool can lose: if traders win, LP share value drops.
+- **Hyperliquid route.** Users trade real USDC even while the site is in Practice mode; the ticket labels it. Agent keys live in browser storage like the pool's session keys: an XSS bug could place trades (not withdraw) for connected users, so keep the frontend's dependencies tight.
 - **Legal exposure.** House-banked leveraged long/short betting for the public is likely to be treated as unregistered derivatives or gambling in the US, and Washington is strict on online gambling. Talk to a lawyer before taking real money. Geoblocking US users is the usual minimum.

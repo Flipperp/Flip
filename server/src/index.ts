@@ -14,6 +14,7 @@ import { loadKeypair } from "./chain/keys.js";
 import { Auth } from "./auth.js";
 import { buildApi } from "./api.js";
 import { startDemo } from "./demo.js";
+import { HlLink, parseMap } from "./hl/link.js";
 
 async function main() {
   const cfg = config;
@@ -35,6 +36,17 @@ async function main() {
   if (vault) console.log(`[vault] ${vault.publicKey.toBase58()}`);
   if (vault && creator && vault.publicKey.equals(creator.publicKey)) throw new Error("Vault and creator wallets must be different");
 
+  if (cfg.hl.builder && !/^0x[0-9a-f]{40}$/.test(cfg.hl.builder)) throw new Error("HL_BUILDER must be a 0x-prefixed EVM address");
+  const hl = cfg.hl.enabled
+    ? new HlLink(prices, (mint) => !!engine.market(mint)?.listed, {
+        apiUrl: cfg.hl.apiUrl,
+        pollMs: cfg.hl.pollMs,
+        maxDivergence: cfg.hl.maxDivergence,
+        confirmChecks: cfg.hl.confirmChecks,
+        map: parseMap(cfg.hl.map),
+      })
+    : null;
+
   const oracle = new ChainOracle(conn, db, prices, {
     pollMs: Number(process.env.POLL_MS ?? 1000),
     slowPollMs: Number(process.env.SLOW_POLL_MS ?? 15_000),
@@ -48,11 +60,13 @@ async function main() {
 
   const seeder = new MarketSeeder(oracle, {
     everyMs: 10 * 60_000,
-    seedMints: [cfg.tokenMint, ...(process.env.SEED_MINTS ?? "").split(",")].map((s) => s.trim()).filter(Boolean),
+    // Coins with a Hyperliquid perp are always listed so the route can be checked against their price.
+    seedMints: [cfg.tokenMint, ...(process.env.SEED_MINTS ?? "").split(","), ...(hl?.mints ?? [])].map((s) => s.trim()).filter(Boolean),
     maxPerRun: Number(process.env.SEED_PER_RUN ?? 30),
     gapMs: Number(process.env.SEED_GAP_MS ?? 1500),
   });
   if (!demo && process.env.DISABLE_SEEDER !== "true") seeder.start();
+  hl?.start();
 
   // Settlement loop: auto-close max wins and liquidations every second.
   const tickTimer = setInterval(() => {
@@ -124,7 +138,9 @@ async function main() {
     vault: vault?.publicKey.toBase58() ?? null,
     solUsd: () => solUsd,
     staticDir: process.env.STATIC_DIR ?? "../web/dist",
+    hl,
     status: () => ({
+      hyperliquid: hl ? { error: hl.lastError, lastPoll: hl.lastPoll, routable: hl.all().filter((l) => l.routable).map((l) => l.coin) } : null,
       oracle: { error: oracle.lastError, tracked: prices.mints().length },
       deposits: deposits ? { error: deposits.lastError } : null,
       withdrawals: withdrawals ? { error: withdrawals.lastError } : null,
@@ -148,6 +164,7 @@ async function main() {
     sweeper?.stop();
     tracker?.stop();
     auditor.stop();
+    hl?.stop();
     await app.close();
     db.close();
     process.exit(0);

@@ -5,6 +5,9 @@ import { get, type Market, type PositionV } from "../lib/api";
 import { pct, signedSol, sol } from "../lib/format";
 import { CoinAvatar, OiBar, TradesColumn, useNow } from "../components/bits";
 import TradeTicket from "../components/TradeTicket";
+import HlTicket from "../components/HlTicket";
+import { HlPositions } from "../components/HlPositions";
+import { useHl } from "../lib/hl";
 import CandleChart, { type ChartLine } from "../components/CandleChart";
 import MarketBar from "../components/MarketBar";
 import { History, OpenPositions } from "../components/Positions";
@@ -139,9 +142,14 @@ export default function Trade() {
   const { mint = "" } = useParams();
   const [params] = useSearchParams();
   const { mode, markets, tape, watch, wallet, walletBump } = useApp();
-  const [tab, setTab] = useState<"positions" | "history" | "top">("positions");
+  const [tab, setTab] = useState<"positions" | "hl" | "history" | "top">("positions");
+  const hl = useHl();
+  const hlOpen = hl.account?.positions.length ?? 0;
+  const [venuePick, setVenue] = useState<"hl" | "pool" | null>(null);
   const detail = usePoll(() => get<Detail>(`/api/market/${mint}?mode=${mode}`), [mint, mode, walletBump], 5000);
   const me = usePoll(() => (wallet ? get<Me>(`/api/me?mode=${mode}&wallet=${wallet}`) : Promise.resolve(null)), [wallet, mode, walletBump], 2000);
+
+  useEffect(() => setVenue(null), [mint]);
 
   useEffect(() => {
     watch(mint);
@@ -179,6 +187,8 @@ export default function Trade() {
   if (!m) return <div className="empty">Loading market…</div>;
 
   const initialSide = params.get("side") === "short" ? "short" : "long";
+  // Coins with a live Hyperliquid perp default to the order book: no pool risk and deeper size.
+  const venue: "hl" | "pool" = venuePick ?? (m.hl?.routable ? "hl" : "pool");
   const origin = params.get("origin") ?? undefined;
   const closedCount = me.data?.closed.length ?? 0;
 
@@ -204,10 +214,28 @@ export default function Trade() {
         </div>
       </section>
       <aside className="t-ticket">
-        <TradeTicket market={m} balance={wallet ? (me.data?.balance ?? null) : null} tier={me.data?.tier ?? 0} initialSide={initialSide} origin={origin} onOpened={() => me.reload()} />
-        <div style={{ padding: "0 12px 12px" }}>
-          <AccountBox me={me.data} onChange={() => me.reload()} />
-        </div>
+        {m.hl && (!origin || origin === "direct") && (
+          <div className="venue-tabs" role="radiogroup" aria-label="Route">
+            <button role="radio" aria-checked={venue === "hl"} className={venue === "hl" ? "on" : ""} onClick={() => setVenue("hl")}>
+              Hyperliquid
+              <small>{m.hl.routable ? "order book" : "off"}</small>
+            </button>
+            <button role="radio" aria-checked={venue === "pool"} className={venue === "pool" ? "on" : ""} onClick={() => setVenue("pool")}>
+              Flip pool
+              <small>SOL · instant</small>
+            </button>
+          </div>
+        )}
+        {venue === "hl" && m.hl && (!origin || origin === "direct") ? (
+          <HlTicket market={m} link={m.hl} tier={me.data?.tier ?? 0} initialSide={initialSide} />
+        ) : (
+          <>
+            <TradeTicket market={m} balance={wallet ? (me.data?.balance ?? null) : null} tier={me.data?.tier ?? 0} initialSide={initialSide} origin={origin} onOpened={() => me.reload()} />
+            <div style={{ padding: "0 12px 12px" }}>
+              <AccountBox me={me.data} onChange={() => me.reload()} />
+            </div>
+          </>
+        )}
       </aside>
       <section className="t-bottom" aria-label="Your trading">
         <div className="pane-head">
@@ -215,6 +243,11 @@ export default function Trade() {
             <button role="tab" aria-selected={tab === "positions"} className={tab === "positions" ? "on" : ""} onClick={() => setTab("positions")}>
               Positions{myOpen.length ? ` (${myOpen.length})` : ""}
             </button>
+            {(hl.user || hlOpen > 0) && (
+              <button role="tab" aria-selected={tab === "hl"} className={tab === "hl" ? "on" : ""} onClick={() => setTab("hl")}>
+                Hyperliquid{hlOpen ? ` (${hlOpen})` : ""}
+              </button>
+            )}
             <button role="tab" aria-selected={tab === "history"} className={tab === "history" ? "on" : ""} onClick={() => setTab("history")}>
               Trade history{closedCount ? ` (${closedCount})` : ""}
             </button>
@@ -225,6 +258,7 @@ export default function Trade() {
         </div>
         {tab === "positions" &&
           (wallet ? <OpenPositions positions={myOpen} onChange={() => me.reload()} /> : <p className="empty-inline">Connect a wallet to see your positions.</p>)}
+        {tab === "hl" && <HlPositions tier={me.data?.tier ?? 0} />}
         {tab === "history" && (wallet ? <History positions={me.data?.closed ?? []} /> : <p className="empty-inline">Connect a wallet to see your trade history.</p>)}
         {tab === "top" && <TopTrades />}
       </section>

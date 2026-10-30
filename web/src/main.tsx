@@ -8,6 +8,7 @@ import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import "@solana/wallet-adapter-react-ui/styles.css";
 import "./styles.css";
 import { AppProvider } from "./lib/store";
+import { HlProvider } from "./lib/hl";
 import App from "./App";
 import { DemoWalletAdapter } from "./demo/wallet";
 
@@ -25,7 +26,9 @@ function Root() {
         <WalletModalProvider>
           <Router>
             <AppProvider>
-              <App />
+              <HlProvider>
+                <App />
+              </HlProvider>
             </AppProvider>
           </Router>
         </WalletModalProvider>

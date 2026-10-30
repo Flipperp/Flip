@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../lib/store";
-import { FilterSeg, MarketTable } from "../components/MarketBar";
+import { FilterSeg, MarketTable, type Filter } from "../components/MarketBar";
 import { compactSol, sol } from "../lib/format";
 
 export default function Markets() {
   const nav = useNavigate();
   const { markets, pool, config } = useApp();
   const [q, setQ] = useState("");
-  const [filter, setFilter] = useState<"all" | "tradable" | "curve" | "graduated" | "open">("all");
+  const [filter, setFilter] = useState<Filter>("all");
   const list = [...markets.values()];
   const oi = list.reduce((a, m) => a + m.longOpen + m.shortOpen, 0);
   return (

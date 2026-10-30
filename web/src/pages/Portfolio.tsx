@@ -1,3 +1,6 @@
+import { useHl } from "../lib/hl";
+import { HlPositions } from "../components/HlPositions";
+import { usd2 } from "../lib/format";
 import { useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
@@ -95,6 +98,51 @@ function Withdraw({ balance, onDone }: { balance: number; onDone: () => void }) 
   );
 }
 
+function HlPanel({ tier }: { tier: number }) {
+  const hl = useHl();
+  if (!hl.cfg?.enabled) return null;
+  const a = hl.account;
+  return (
+    <section className="panel">
+      <div className="pane-head">
+        <h2>Hyperliquid</h2>
+        <span className="venue hl-venue">real USDC</span>
+        <span className="spacer" />
+        {hl.user ? (
+          <span className="mono faint small">
+            {hl.user.slice(0, 6)}…{hl.user.slice(-4)}
+          </span>
+        ) : (
+          <button className="btn btn-sm btn-primary" onClick={hl.connect}>
+            Connect EVM wallet
+          </button>
+        )}
+      </div>
+      {hl.user && a && (
+        <dl className="stat-row" style={{ padding: "0 12px" }}>
+          <div>
+            <dt>Perps equity</dt>
+            <dd className="num">{usd2(a.accountValue)}</dd>
+          </div>
+          <div>
+            <dt>Withdrawable</dt>
+            <dd className="num">{usd2(a.withdrawable)}</dd>
+          </div>
+          <div>
+            <dt>Margin in use</dt>
+            <dd className="num">{usd2(a.marginUsed)}</dd>
+          </div>
+          <div>
+            <dt>Unrealized</dt>
+            <dd className={`num ${a.positions.reduce((x, p) => x + p.unrealizedPnl, 0) >= 0 ? "t-long" : "t-short"}`}>{usd2(a.positions.reduce((x, p) => x + p.unrealizedPnl, 0))}</dd>
+          </div>
+        </dl>
+      )}
+      <HlPositions tier={tier} />
+    </section>
+  );
+}
+
 export default function Portfolio() {
   const { mode, wallet, walletBump, act, config } = useApp();
   const { setVisible } = useWalletModal();
@@ -104,11 +152,14 @@ export default function Portfolio() {
 
   if (!wallet)
     return (
-      <div className="empty">
-        Connect a wallet to see your balance and positions.
-        <button className="btn btn-primary" onClick={() => setVisible(true)}>
-          Connect wallet
-        </button>
+      <div className="page">
+        <div className="empty">
+          Connect a Solana wallet to see your Flip balance and pool positions.
+          <button className="btn btn-primary" onClick={() => setVisible(true)}>
+            Connect wallet
+          </button>
+        </div>
+        <HlPanel tier={0} />
       </div>
     );
   const d = me.data;
@@ -234,6 +285,8 @@ export default function Portfolio() {
           </div>
         )}
       </section>
+
+      <HlPanel tier={d.tier} />
 
       <p className="fine">
         Trades are signed by a browser key your wallet approved for 24 hours. It can trade but can't withdraw.{" "}

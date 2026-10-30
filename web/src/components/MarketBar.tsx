@@ -2,10 +2,10 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../lib/store";
 import { post, type Market } from "../lib/api";
-import { compactSol, pct, price, sol, usd, venueName } from "../lib/format";
+import { compactSol, pct, price, sol, usd, usdPx, venueName } from "../lib/format";
 import { CoinAvatar } from "./bits";
 
-type Filter = "all" | "tradable" | "curve" | "graduated" | "open";
+export type Filter = "all" | "tradable" | "hl" | "curve" | "graduated" | "open";
 
 export function MarketTable({ onPick, current, filter, q }: { onPick: (m: Market) => void; current?: string; filter: Filter; q: string }) {
   const { markets, solUsd } = useApp();
@@ -15,6 +15,7 @@ export function MarketTable({ onPick, current, filter, q }: { onPick: (m: Market
     const qq = q.trim().toLowerCase();
     if (qq) list = list.filter((m) => m.symbol.toLowerCase().includes(qq) || m.name.toLowerCase().includes(qq) || m.mint.toLowerCase() === qq);
     if (filter === "tradable") list = list.filter((m) => m.tradable);
+    if (filter === "hl") list = list.filter((m) => m.hl?.routable);
     if (filter === "curve") list = list.filter((m) => m.venue === "pumpfun");
     if (filter === "graduated") list = list.filter((m) => m.venue !== "pumpfun");
     if (filter === "open") list = list.filter((m) => m.longOpen + m.shortOpen > 0);
@@ -54,6 +55,7 @@ export function MarketTable({ onPick, current, filter, q }: { onPick: (m: Market
                     <span className="faint small">{m.name}</span>
                   </div>
                   <span className="venue">{venueName[m.venue] ?? m.venue}</span>
+                  {m.hl?.routable && <span className="venue hl-venue">HL perp</span>}
                   {!m.tradable && <span className="venue">{m.reason === "too_thin" ? "close only" : "warming up"}</span>}
                 </div>
               </td>
@@ -76,6 +78,7 @@ export function FilterSeg({ value, onChange }: { value: Filter; onChange: (f: Fi
   const opts: [Filter, string][] = [
     ["all", "All"],
     ["tradable", "Tradable"],
+    ["hl", "Hyperliquid"],
     ["curve", "On curve"],
     ["graduated", "Graduated"],
     ["open", "Has positions"],
@@ -162,6 +165,7 @@ export default function MarketBar({ market, reserve }: { market: Market; reserve
           <CoinAvatar image={market.image} symbol={market.symbol} size={26} />
           <span className="sym">{market.symbol || "?"}</span>
           <span className="venue">{venueName[market.venue] ?? market.venue}</span>
+          {market.hl?.routable && <span className="venue hl-venue" title={`Also trades as the ${market.hl.coin} perp on Hyperliquid`}>HL perp</span>}
           <svg className="caret" width="12" height="12" viewBox="0 0 12 12" aria-hidden>
             <path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" />
           </svg>
@@ -190,6 +194,26 @@ export default function MarketBar({ market, reserve }: { market: Market; reserve
               <span className="t-long">{sol(market.longOpen, 2)}</span> / <span className="t-short">{sol(market.shortOpen, 2)}</span>
             </dd>
           </div>
+          {market.hl?.routable && (
+            <>
+              <div>
+                <dt title={`Hyperliquid ${market.hl.coin} perp mark price`}>HL mark</dt>
+                <dd className="num">{usdPx(market.hl.markPx)}</dd>
+              </div>
+              <div>
+                <dt title="Hyperliquid funding rate, paid hourly. Positive: longs pay shorts.">HL funding / 1h</dt>
+                <dd className="num">{market.hl.funding === null ? "–" : `${(market.hl.funding * 100).toFixed(4)}%`}</dd>
+              </div>
+              <div>
+                <dt title="Hyperliquid open interest">HL open interest</dt>
+                <dd className="num">{market.hl.openInterest !== null && market.hl.markPx ? usd(market.hl.openInterest * market.hl.markPx) : "–"}</dd>
+              </div>
+              <div>
+                <dt title="Hyperliquid 24h notional volume">HL 24h volume</dt>
+                <dd className="num">{usd(market.hl.dayNtlVlm)}</dd>
+              </div>
+            </>
+          )}
           <div>
             <dt title="What the pool would pay on this coin in the worst case">Pool at risk here</dt>
             <dd className="num">{reserve === null ? "–" : `${sol(reserve, 2)} SOL`}</dd>
