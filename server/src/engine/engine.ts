@@ -160,6 +160,8 @@ export class Engine extends EventEmitter {
   }
 
   private assertLive(mode: Mode) {
+    // The site has one mode: test balances before launch, real money after. Never both.
+    if (mode === "paper" && this.cfg.realEnabled) throw new TradeError("test_off", "Test trading is off: real trading is live");
     if (mode === "real" && !this.cfg.realEnabled) throw new TradeError("real_disabled", "Real trading is not enabled");
     const h = this.halted(mode);
     if (h) throw new TradeError("halted", `Trading is paused: ${h}`);
@@ -446,6 +448,7 @@ export class Engine extends EventEmitter {
   }
 
   claimPaper(wallet: string) {
+    if (this.cfg.realEnabled) throw new TradeError("test_off", "Test SOL is off: real trading is live");
     const now = this.now();
     return this.tx(() => {
       const r = this.db.prepare("SELECT last_claim FROM paper_claims WHERE wallet = ?").get(wallet) as { last_claim: number } | undefined;

@@ -1,10 +1,11 @@
 // Runs the real server (engine, auth, API routes, demo market simulator) inside the page.
 import initSqlJs from "sql.js/dist/sql-asm-memory-growth.js";
 import { setSqlJs } from "./shims/better-sqlite3";
+import { DEMO_HL_MAP, DEMO_HL_URL, installHlMock } from "./hlMock";
 
 export async function startBackend() {
   setSqlJs(await (initSqlJs as any)());
-  const [{ config }, { openDb }, { PriceStore }, { Engine }, { Auth }, { buildApi }, { startDemo }] = await Promise.all([
+  const [{ config }, { openDb }, { PriceStore }, { Engine }, { Auth }, { buildApi }, { startDemo }, { HlLink }] = await Promise.all([
     import("../../../server/src/config"),
     import("../../../server/src/db"),
     import("../../../server/src/oracle/priceStore"),
@@ -12,8 +13,13 @@ export async function startBackend() {
     import("../../../server/src/auth"),
     import("../../../server/src/api"),
     import("../../../server/src/demo"),
+    import("../../../server/src/hl/link"),
   ]);
-  const cfg = { ...config, realEnabled: false };
+  const cfg = {
+    ...config,
+    realEnabled: false,
+    hl: { ...config.hl, enabled: true, apiUrl: DEMO_HL_URL, builder: "0x1111111111111111111111111111111111111111", builderFee: 50, pollMs: 3000 },
+  };
   const db = openDb(":memory:");
   const prices = new PriceStore(cfg.trading.twapWindowMs, cfg.trading.minTwapSamples, cfg.trading.staleMs);
   const engine = new Engine(db, prices, cfg);
@@ -26,7 +32,17 @@ export async function startBackend() {
     }
   }, 1000);
   const auth = new Auth(db, cfg.brand.name);
+  // Simulated Hyperliquid, linked to a few demo coins the same way real coins are linked.
+  const hl = new HlLink(prices, (mint) => !!engine.market(mint)?.listed, {
+    apiUrl: DEMO_HL_URL,
+    pollMs: 3000,
+    maxDivergence: cfg.hl.maxDivergence,
+    confirmChecks: 1,
+    map: DEMO_HL_MAP,
+    fetchImpl: (...a) => window.fetch(...a),
+  });
   const app: any = await buildApi({
+    hl,
     cfg,
     engine,
     auth,
@@ -46,6 +62,8 @@ export async function startBackend() {
     const r = await app.handle((init?.method ?? "GET").toUpperCase(), u.pathname + u.search, body);
     return new Response(JSON.stringify(r.body), { status: r.status, headers: { "content-type": "application/json" } });
   }) as typeof fetch;
+  installHlMock(window.fetch.bind(window));
+  hl.start();
 
   const RealWS = window.WebSocket;
   class LocalSocket extends EventTarget {

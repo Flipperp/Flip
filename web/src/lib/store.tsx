@@ -19,7 +19,6 @@ interface Toast {
 interface AppState {
   config: Config | null;
   mode: Mode;
-  setMode: (m: Mode) => void;
   markets: Map<string, Market>;
   upsertMarket: (m: Market) => void;
   tape: TapeEvent[];
@@ -43,21 +42,12 @@ export function useApp() {
   return c;
 }
 
-function initialMode(): Mode {
-  try {
-    const m = localStorage.getItem("flip:mode");
-    if (m === "real" || m === "paper") return m;
-  } catch {
-    /* ignore */
-  }
-  return "paper";
-}
-
 export function AppProvider({ children }: { children: ReactNode }) {
   const { publicKey, signMessage } = useWallet();
   const wallet = publicKey?.toBase58() ?? null;
   const [config, setConfig] = useState<Config | null>(null);
-  const [mode, setModeState] = useState<Mode>(initialMode);
+  // One mode, set by the server: real money once REAL_ENABLED is on, test balances before that.
+  const [mode, setModeState] = useState<Mode>("paper");
   const [markets, setMarkets] = useState<Map<string, Market>>(new Map());
   const [tape, setTape] = useState<TapeEvent[]>([]);
   const [pool, setPool] = useState<PoolTick | null>(null);
@@ -75,21 +65,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), kind === "error" ? 6000 : 3500);
   }, []);
 
-  const setMode = useCallback((m: Mode) => {
-    setModeState(m);
-    try {
-      localStorage.setItem("flip:mode", m);
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
   useEffect(() => {
     get<Config>("/api/config")
       .then((c) => {
         setConfig(c);
         setSolUsd(c.solUsd);
-        if (!c.realEnabled) setModeState("paper");
+        setModeState(c.realEnabled ? "real" : "paper");
       })
       .catch(() => toast("error", "Can't reach the server. Retrying…"));
   }, [toast]);
@@ -186,8 +167,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<AppState>(
-    () => ({ config, mode, setMode, markets, upsertMarket, tape, pool, solUsd, connected, walletBump, toasts, toast, watch, act, wallet }),
-    [config, mode, setMode, markets, upsertMarket, tape, pool, solUsd, connected, walletBump, toasts, toast, watch, act, wallet],
+    () => ({ config, mode, markets, upsertMarket, tape, pool, solUsd, connected, walletBump, toasts, toast, watch, act, wallet }),
+    [config, mode, markets, upsertMarket, tape, pool, solUsd, connected, walletBump, toasts, toast, watch, act, wallet],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

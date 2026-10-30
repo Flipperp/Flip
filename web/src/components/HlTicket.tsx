@@ -39,7 +39,7 @@ export default function HlTicket({ market, link, tier, initialSide = "long" }: P
   const takerPct = hl.takerRate !== null ? hl.takerRate * 100 : null;
   const est = mid > 0 ? estLiquidation(mid, side === "long", effLev, maintenanceFrac(link.maxLeverage)) : null;
   const unit = link.mult > 1 ? `1 ${link.coin} = ${link.mult.toLocaleString()} ${market.symbol}` : null;
-  const realBadge = <span className="hl-real">Real USDC</span>;
+  const realBadge = <span className="hl-real">{(import.meta as any).env?.VITE_DEMO === "true" ? "Demo USDC" : "Real USDC"}</span>;
 
   const head = (
     <div className="hl-head">

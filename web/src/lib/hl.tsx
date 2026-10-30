@@ -102,6 +102,8 @@ const ERC20 = [
 /** Phantom's Ethereum account first, then any injected EVM wallet. */
 export function evmProvider(): EIP1193Provider | null {
   const w = window as any;
+  // The hosted demo uses its own wallet so a real one is never asked to sign or pay.
+  if (w.__flipDemoEvm) return w.__flipDemoEvm as EIP1193Provider;
   return (w.phantom?.ethereum as EIP1193Provider | undefined) ?? (w.ethereum as EIP1193Provider | undefined) ?? null;
 }
 

@@ -11,6 +11,8 @@ import Pool from "./pages/Pool";
 import Holders from "./pages/Holders";
 import How from "./pages/How";
 
+const DEMO = (import.meta as any).env?.VITE_DEMO === "true";
+
 function Logo() {
   return (
     <svg viewBox="0 0 28 28" width="24" height="24" aria-hidden>
@@ -59,20 +61,6 @@ function WalletButton() {
           </button>
         </div>
       )}
-    </div>
-  );
-}
-
-function ModeSwitch() {
-  const { mode, setMode, config } = useApp();
-  return (
-    <div className="seg" role="radiogroup" aria-label="Trading mode">
-      <button role="radio" aria-checked={mode === "real"} className={`mode-real ${mode === "real" ? "on" : ""}`} onClick={() => setMode("real")} disabled={!config?.realEnabled} title={config?.realEnabled ? "Trade with real SOL" : "Real trading isn't live yet"}>
-        Real
-      </button>
-      <button role="radio" aria-checked={mode === "paper"} className={mode === "paper" ? "on" : ""} onClick={() => setMode("paper")}>
-        Practice
-      </button>
     </div>
   );
 }
@@ -136,12 +124,13 @@ export default function App() {
           <NavLink to="/docs">Docs</NavLink>
         </nav>
         <div className="top-right">
-          <ModeSwitch />
           <TokenChip />
           <WalletButton />
         </div>
       </header>
-      {mode === "paper" && <div className="banner banner-paper">Practice mode: paper SOL, real rules. Nothing here is real money.</div>}
+      {DEMO ? (
+        <div className="banner banner-paper">Demo: simulated coins, simulated Hyperliquid, demo wallets. Nothing here is real money.</div>
+      ) : config && !config.realEnabled && <div className="banner banner-paper">Pre-launch: pool trades use test SOL on live prices. Hyperliquid trades are real.</div>}
       {halted && <div className="banner banner-halt">Trading is paused: {halted}. Open positions still settle at their limits.</div>}
       {!connected && config && <div className="banner banner-warn">Reconnecting to live prices…</div>}
       <main>

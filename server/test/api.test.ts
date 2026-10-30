@@ -39,6 +39,9 @@ async function post(url: string, body: object) {
 beforeAll(async () => {
   app = await buildApi({ cfg, engine, auth, oracle: null, rewards: null, vault: null, status: () => ({}), solUsd: () => 150 });
   db.prepare("INSERT INTO markets (mint, symbol, name, venue, source, supply, added_at) VALUES (?, 'TST', 'Test', 'pumpswap', '{}', 1e9, 0)").run(MINT);
+  engine.creditDeposit("lp", "real", 100 * SOL, "seed");
+  engine.poolDeposit("lp", "real", 100 * SOL);
+  engine.creditDeposit(wallet.publicKey.toBase58(), "real", 5 * SOL, "d0");
   for (let i = 0; i < 31; i++) {
     clock += 1000;
     prices.push(MINT, { price: 0.000001, liquidity: 200 * SOL, mcapSol: 1000, ts: clock });
@@ -50,12 +53,12 @@ describe("api", () => {
   it("serves config and markets", async () => {
     const c = (await app.inject("/api/config")).json();
     expect(c.leverages).toEqual([2, 5, 10]);
-    const m = (await app.inject("/api/markets?mode=paper")).json();
+    const m = (await app.inject("/api/markets?mode=real")).json();
     expect(m[0].tradable).toBe(true);
   });
 
   it("rejects bad and replayed signatures", async () => {
-    const s = sign(wallet, { action: "faucet" });
+    const s = sign(wallet, { action: "close_all", mode: "real" });
     expect((await post("/api/action", { ...s, signature: bs58.encode(new Uint8Array(64)) })).status).toBe(401);
     expect((await post("/api/action", s)).status).toBe(200);
     const replay = await post("/api/action", s);
@@ -66,19 +69,19 @@ describe("api", () => {
   it("trades through a session key, but the session can't withdraw", async () => {
     const created = await post("/api/session", sign(wallet, { action: "session", session: session.publicKey.toBase58(), expiresAt: clock + 3600_000 }));
     expect(created.status).toBe(200);
-    const open = await post("/api/action", sign(session, { action: "open", mode: "paper", mint: MINT, side: "short", leverage: 5, stake: 0.5 * SOL }));
+    const open = await post("/api/action", sign(session, { action: "open", mode: "real", mint: MINT, side: "short", leverage: 5, stake: 0.5 * SOL }));
     expect(open.status).toBe(200);
     expect(open.body.position.side).toBe("short");
-    const me = (await app.inject(`/api/me?mode=paper&wallet=${wallet.publicKey.toBase58()}`)).json();
+    const me = (await app.inject(`/api/me?mode=real&wallet=${wallet.publicKey.toBase58()}`)).json();
     expect(me.open.length).toBe(1);
     expect(me.balance).toBe(4.5 * SOL);
 
     // Fade it from another wallet: must be the opposite side.
     const other = Keypair.generate();
-    await post("/api/action", sign(other, { action: "faucet" }));
-    const badFade = await post("/api/action", sign(other, { action: "open", mode: "paper", mint: MINT, side: "short", leverage: 2, stake: 0.1 * SOL, origin: `fade:${open.body.position.id}` }));
+    engine.creditDeposit(other.publicKey.toBase58(), "real", SOL, "d1");
+    const badFade = await post("/api/action", sign(other, { action: "open", mode: "real", mint: MINT, side: "short", leverage: 2, stake: 0.1 * SOL, origin: `fade:${open.body.position.id}` }));
     expect(badFade.status).toBe(400);
-    const fade = await post("/api/action", sign(other, { action: "open", mode: "paper", mint: MINT, side: "long", leverage: 2, stake: 0.1 * SOL, origin: `fade:${open.body.position.id}` }));
+    const fade = await post("/api/action", sign(other, { action: "open", mode: "real", mint: MINT, side: "long", leverage: 2, stake: 0.1 * SOL, origin: `fade:${open.body.position.id}` }));
     expect(fade.status).toBe(200);
 
     const tooSoon = await post("/api/action", sign(session, { action: "close", id: open.body.position.id }));
@@ -91,7 +94,6 @@ describe("api", () => {
     expect(closed.status).toBe(200);
     expect(closed.body.position.pnl).toBeGreaterThan(0);
 
-    engine.creditDeposit(wallet.publicKey.toBase58(), "real", SOL, "d");
     const viaSession = await post("/api/action", sign(session, { action: "withdraw", amount: 0.1 * SOL }));
     expect(viaSession.status).toBe(401);
     const direct = await post("/api/action", sign(wallet, { action: "withdraw", amount: 0.1 * SOL }));
@@ -99,7 +101,7 @@ describe("api", () => {
   });
 
   it("validates payloads and protects admin routes", async () => {
-    const bad = await post("/api/action", sign(wallet, { action: "open", mode: "paper", mint: MINT, side: "sideways", leverage: 2, stake: 1 }));
+    const bad = await post("/api/action", sign(wallet, { action: "open", mode: "real", mint: MINT, side: "sideways", leverage: 2, stake: 1 }));
     expect(bad.status).toBe(400);
     expect((await app.inject({ method: "POST", url: "/api/admin/halt", payload: { mode: "real" } })).statusCode).toBe(403);
     const ok = await app.inject({ method: "POST", url: "/api/admin/book", headers: { "x-admin-key": "secret" }, payload: {} });
@@ -107,13 +109,21 @@ describe("api", () => {
     expect(ok.json().paper.ok).toBe(true);
   });
 
+  it("has one mode: with real trading live, test balances are refused", async () => {
+    const faucet = await post("/api/action", sign(wallet, { action: "faucet" }));
+    expect(faucet.status).toBe(400);
+    expect(faucet.body.error).toBe("test_off");
+    const paper = await post("/api/action", sign(wallet, { action: "open", mode: "paper", mint: MINT, side: "long", leverage: 2, stake: 0.1 * SOL }));
+    expect(paper.body.error).toBe("test_off");
+  });
+
   it("exposes pool, tape and top trades", async () => {
-    const pool = (await app.inject("/api/pool?mode=paper")).json();
+    const pool = (await app.inject("/api/pool?mode=real")).json();
     expect(pool.cash).toBeGreaterThan(0);
     expect(pool.exposure.length).toBe(1);
-    const tape = (await app.inject("/api/tape?mode=paper")).json();
+    const tape = (await app.inject("/api/tape?mode=real")).json();
     expect(tape.some((e: any) => e.kind === "open")).toBe(true);
-    const top = (await app.inject("/api/top?mode=paper&window=all")).json();
+    const top = (await app.inject("/api/top?mode=real&window=all")).json();
     expect(top.length).toBe(1);
   });
 });

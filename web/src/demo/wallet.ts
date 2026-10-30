@@ -2,9 +2,9 @@ import { BaseMessageSignerWalletAdapter, WalletReadyState, WalletNotConnectedErr
 import { Keypair, PublicKey, type Transaction, type VersionedTransaction } from "@solana/web3.js";
 import nacl from "tweetnacl";
 
-/** A throwaway in-browser wallet for the hosted Practice demo. Holds paper SOL only. */
+/** A throwaway in-browser wallet for the hosted demo. Holds test SOL only. */
 export class DemoWalletAdapter extends BaseMessageSignerWalletAdapter {
-  name = "Demo wallet (practice only)" as WalletName<"Demo wallet (practice only)">;
+  name = "Demo wallet (test only)" as WalletName<"Demo wallet (test only)">;
   url = "https://example.invalid";
   icon =
     "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23B9A4FF'/%3E%3Cpath d='M7 9h18l-7 7 7 7H7' fill='none' stroke='%2315122A' stroke-width='3' stroke-linejoin='round'/%3E%3C/svg%3E";

@@ -126,8 +126,8 @@ function AccountBox({ me, onChange }: { me: Me | null; onChange: () => void }) {
         <span className="tier-tag">{config.tiers[me.tier]?.name}</span>
       </div>
       {mode === "paper" ? (
-        <button className="btn btn-sm" disabled={wait > 0} onClick={() => act({ action: "faucet" }, { success: `Claimed ${sol(config.paper.faucetAmount, 0)} paper SOL` }).then(onChange)}>
-          {wait > 0 ? "Paper SOL claimed today" : `Claim ${sol(config.paper.faucetAmount, 0)} paper SOL`}
+        <button className="btn btn-sm" disabled={wait > 0} onClick={() => act({ action: "faucet" }, { success: `Claimed ${sol(config.paper.faucetAmount, 0)} test SOL` }).then(onChange)}>
+          {wait > 0 ? "Test SOL claimed today" : `Claim ${sol(config.paper.faucetAmount, 0)} test SOL`}
         </button>
       ) : (
         <Link className="btn btn-sm" to="/portfolio">

@@ -15,7 +15,7 @@ export default function How() {
         <li>
           <h3>Fund your balance</h3>
           <p>
-            Send SOL from your wallet on the Portfolio page. It's credited a few seconds after the network confirms it. Withdrawals go back to the wallet that signs. Want to try it first? Switch to Practice at the top and claim {sol(c.paper.faucetAmount, 0)} paper SOL.
+            Send SOL from your wallet on the Portfolio page. It's credited a few seconds after the network confirms it. Withdrawals go back to the wallet that signs.{!c.realEnabled && ` Until real trading launches, claim ${sol(c.paper.faucetAmount, 0)} test SOL instead.`}
           </p>
         </li>
         <li>
@@ -132,7 +132,7 @@ export default function How() {
           This is a custodial service. Deposits sit in a hot wallet and the server keeps the book. Every balance change is logged and the book is checked against the vault continuously; if anything is out of place, trading and withdrawals stop.
         </li>
         <li>Pool depositors can lose money when traders win. The share price reflects open trades in real time.</li>
-        {c.hl?.enabled && <li>Hyperliquid trades are real USDC even in Practice mode. Perps can be liquidated, and funding costs add up on positions held for days.</li>}
+        {c.hl?.enabled && <li>Hyperliquid trades always use real USDC. Perps can be liquidated, and funding costs add up on positions held for days.</li>}
         <li>Check that this kind of trading is legal where you live before using real money.</li>
       </ul>
     </div>

@@ -171,7 +171,7 @@ export default function Portfolio() {
     <div className="page">
       <div className="page-head">
         <div>
-          <span className="muted">{mode === "paper" ? "Paper equity" : "Equity"}</span>
+          <span className="muted">{mode === "paper" ? "Test equity" : "Equity"}</span>
           <div className="big">{sol(equity)} SOL</div>
           <span className={`mono ${d.unrealized >= 0 ? "t-long" : "t-short"}`}>{signedSol(d.unrealized, 4)} SOL unrealized</span>
         </div>
@@ -203,10 +203,10 @@ export default function Portfolio() {
         <div className="panel-body">
           {mode === "paper" ? (
             <div className="form-row">
-              <button className="btn btn-primary" disabled={faucetWait > 0} onClick={() => act({ action: "faucet" }, { success: `Claimed ${sol(config?.paper.faucetAmount ?? 0, 0)} paper SOL` }).then(() => me.reload())}>
-                {faucetWait > 0 ? `Next claim in ${duration(faucetWait)}` : `Claim ${sol(config?.paper.faucetAmount ?? 0, 0)} paper SOL`}
+              <button className="btn btn-primary" disabled={faucetWait > 0} onClick={() => act({ action: "faucet" }, { success: `Claimed ${sol(config?.paper.faucetAmount ?? 0, 0)} test SOL` }).then(() => me.reload())}>
+                {faucetWait > 0 ? `Next claim in ${duration(faucetWait)}` : `Claim ${sol(config?.paper.faucetAmount ?? 0, 0)} test SOL`}
               </button>
-              <p className="fine">Practice uses the same prices, rules and pool math as real trading.</p>
+              <p className="fine">Test SOL until real trading launches. Same prices, rules and pool math as the real thing.</p>
             </div>
           ) : (
             <div className="two-col">

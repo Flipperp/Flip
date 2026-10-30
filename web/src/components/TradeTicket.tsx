@@ -86,7 +86,7 @@ export default function TradeTicket({ market, balance, tier, initialSide = "long
           ? `Only ${sol(room)} SOL of room`
           : overBal
             ? mode === "paper"
-              ? "Not enough paper SOL"
+              ? "Not enough test SOL"
               : "Not enough balance"
             : `${side === "long" ? "Long" : "Short"} $${market.symbol} ${leverage}x`;
 

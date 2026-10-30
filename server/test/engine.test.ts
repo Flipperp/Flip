@@ -222,7 +222,9 @@ describe("engine", () => {
     expect(t.engine.conservation("real").ok).toBe(true);
   });
 
-  it("paper mode is isolated, seeded, and has a faucet with cooldown", () => {
+  it("test balances only exist before launch, and are isolated from real", () => {
+    expect(() => t.engine.claimPaper("x")).toThrow(/real trading is live/);
+    t = setup({ realEnabled: false });
     t.engine.claimPaper("p");
     expect(t.engine.balance("p", "paper")).toBe(5 * SOL);
     expect(() => t.engine.claimPaper("p")).toThrow(/Next claim/);
