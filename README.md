@@ -69,7 +69,13 @@ A coin with the **HL perp** tag has two tabs in the ticket: **Hyperliquid** (the
   - The route turns off if the prices drift apart, the perp is delisted, or Hyperliquid stops answering.
   - `/api/hl` shows every link and why it is on or off.
 
-Builder fees accrue in USDC on Hyperliquid, not in the SOL book. Claim them from the builder address through Hyperliquid's referral rewards. Routing them into the holder pot is a manual step for now.
+Builder fees accrue in USDC on Hyperliquid, not in the SOL book. To pay them to holders:
+
+1. Claim them from the builder address on app.hyperliquid.xyz (referral rewards).
+2. Convert them to SOL.
+3. Send the SOL to the vault from the wallet set as `HOLDER_FUND_WALLET`.
+
+Every transfer from that wallet goes 100% to the holder pot and is paid out at the next epoch. Keep that wallet separate: SOL it sends can't be traded or withdrawn.
 
 ### Holder moat
 

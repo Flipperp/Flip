@@ -169,7 +169,7 @@ export default function Pool() {
           <ul className="list">
             {p.recent.map((e) => (
               <li key={e.id}>
-                <span className="mono">{e.kind === "creator_fee" ? "Creator fees" : e.walletShort}</span>
+                <span className="mono">{e.kind === "creator_fee" ? "Creator fees" : e.kind === "holder_fund" ? "Hyperliquid fees → holders" : e.walletShort}</span>
                 <span className="muted">{e.kind === "pool_add" ? "added" : e.kind === "pool_remove" ? "withdrew" : "split in"}</span>
                 <span className="num">{sol(e.amount)} SOL</span>
                 <span className="num faint">{ago(e.ts, now)}</span>

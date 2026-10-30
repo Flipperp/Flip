@@ -32,6 +32,11 @@ async function main() {
   if (cfg.realEnabled && process.env.PERSISTENT_DB !== "true") {
     throw new Error("REAL_ENABLED=true requires PERSISTENT_DB=true and DB_PATH on a persistent disk");
   }
+  if (cfg.holderFundWallet) {
+    new PublicKey(cfg.holderFundWallet); // throws on a malformed address
+    if (cfg.holderFundWallet === vault?.publicKey.toBase58() || cfg.holderFundWallet === creator?.publicKey.toBase58())
+      throw new Error("HOLDER_FUND_WALLET must differ from the vault and creator wallets");
+  }
   if (cfg.realEnabled && !cfg.adminKey) throw new Error("REAL_ENABLED=true requires ADMIN_KEY");
   if (vault) console.log(`[vault] ${vault.publicKey.toBase58()}`);
   if (vault && creator && vault.publicKey.equals(creator.publicKey)) throw new Error("Vault and creator wallets must be different");
@@ -84,6 +89,7 @@ async function main() {
       pollMs: 2000,
       minDeposit: cfg.custody.minDeposit,
       creatorWallet: creator?.publicKey.toBase58() ?? null,
+      holderFundWallet: cfg.holderFundWallet || null,
       commitment: cfg.custody.commitment,
     });
     deposits.start();

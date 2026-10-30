@@ -117,7 +117,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           });
         } else if (msg.type === "event") {
           const e = msg.event as TapeEvent;
-          if (["open", "close", "max_win", "liquidated", "pool_add", "pool_remove", "creator_fee", "reward"].includes(e.kind)) {
+          if (["open", "close", "max_win", "liquidated", "pool_add", "pool_remove", "creator_fee", "holder_fund", "reward"].includes(e.kind)) {
             setTape((t) => [e, ...t].slice(0, 80));
           }
           if (e.wallet && e.wallet === walletRef.current) setWalletBump((b) => b + 1);

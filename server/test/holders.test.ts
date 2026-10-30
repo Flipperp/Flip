@@ -115,6 +115,21 @@ describe("holder rewards", () => {
     expect(t.engine.balance("hedger", "real")).toBeGreaterThanOrEqual(hedgerBefore);
     expect(t.engine.conservation("real").ok).toBe(true);
   });
+
+  it("pays everything from the holder-fund wallet into the holder pot", () => {
+    const t = setup();
+    const vault = Keypair.generate().publicKey;
+    const fund = Keypair.generate().publicKey;
+    const w = new DepositWatcher(null as any, t.db, t.engine, vault, { pollMs: 1000, minDeposit: 5_000_000, creatorWallet: null, holderFundWallet: fund.toBase58(), commitment: "confirmed" });
+    const ix = (from: string, lamports: number) => ({ programId: SystemProgram.programId, parsed: { type: "transfer", info: { source: from, destination: vault.toBase58(), lamports } } });
+    const tx = (ixs: any[]) => ({ transaction: { message: { instructions: ixs } }, meta: { err: null, innerInstructions: [] } }) as any;
+    const before = t.engine.bucket("real", "holders_pot");
+    w.process("hf1", 1, tx([ix(fund.toBase58(), 3 * SOL)]));
+    w.process("hf1", 1, tx([ix(fund.toBase58(), 3 * SOL)])); // replay
+    expect(t.engine.bucket("real", "holders_pot") - before).toBe(3 * SOL);
+    expect(t.engine.balance(fund.toBase58(), "real")).toBe(0);
+    expect(t.engine.conservation("real").ok).toBe(true);
+  });
 });
 
 describe("deposit watcher", () => {

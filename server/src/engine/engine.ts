@@ -447,6 +447,15 @@ export class Engine extends EventEmitter {
     });
   }
 
+  /** SOL sent in to be paid to token holders (e.g. claimed Hyperliquid builder fees). All of it goes to the holder pot. */
+  creditHolderFund(amount: number, ref: string) {
+    this.tx(() => {
+      this.addBucket("real", "external_in", amount);
+      this.addBucket("real", "holders_pot", amount);
+      this.event("real", "holder_fund", null, null, amount, ref);
+    });
+  }
+
   claimPaper(wallet: string) {
     if (this.cfg.realEnabled) throw new TradeError("test_off", "Test SOL is off: real trading is live");
     const now = this.now();
@@ -568,7 +577,7 @@ export class Engine extends EventEmitter {
   tape(mode: Mode, limit = 50) {
     return this.db
       .prepare(
-        "SELECT * FROM events WHERE mode = ? AND kind IN ('open','close','max_win','liquidated','pool_add','pool_remove','creator_fee','reward') ORDER BY id DESC LIMIT ?",
+        "SELECT * FROM events WHERE mode = ? AND kind IN ('open','close','max_win','liquidated','pool_add','pool_remove','creator_fee','holder_fund','reward') ORDER BY id DESC LIMIT ?",
       )
       .all(mode, limit)
       .map((e: any) => ({ ...e, data: e.data ? JSON.parse(e.data) : null }));

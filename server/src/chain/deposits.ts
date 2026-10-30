@@ -6,7 +6,9 @@ import type { Engine } from "../engine/engine.js";
 /**
  * Credits SOL sent to the vault. The sender of a system transfer is credited, so users deposit by
  * sending SOL from the wallet they trade with. Transfers from the project's creator wallet are
- * creator-fee sweeps and go through the fee split instead.
+ * creator-fee sweeps and go through the fee split instead. Transfers from the holder-fund wallet
+ * (HOLDER_FUND_WALLET) go straight to the holder pot: that's how Hyperliquid builder fees, once
+ * claimed and converted to SOL, reach $TOKEN holders.
  */
 export class DepositWatcher {
   private running = false;
@@ -18,7 +20,7 @@ export class DepositWatcher {
     private db: DB,
     private engine: Engine,
     private vault: PublicKey,
-    private opts: { pollMs: number; minDeposit: number; creatorWallet: string | null; commitment: "confirmed" | "finalized" },
+    private opts: { pollMs: number; minDeposit: number; creatorWallet: string | null; holderFundWallet?: string | null; commitment: "confirmed" | "finalized" },
   ) {}
 
   start() {
@@ -88,8 +90,9 @@ export class DepositWatcher {
       if (!from || from === vault || !Number.isSafeInteger(amount)) return;
       const already = this.db.prepare("SELECT 1 FROM deposits WHERE sig = ? AND ix = ?").get(sig, n);
       if (already) return;
-      let kind: "user" | "creator_fee" | "ignored" = "user";
+      let kind: "user" | "creator_fee" | "holder_fund" | "ignored" = "user";
       if (this.opts.creatorWallet && from === this.opts.creatorWallet) kind = "creator_fee";
+      else if (this.opts.holderFundWallet && from === this.opts.holderFundWallet) kind = "holder_fund";
       else if (amount < this.opts.minDeposit) kind = "ignored";
       this.engine.tx(() => {
         this.db
@@ -97,6 +100,7 @@ export class DepositWatcher {
           .run(sig, n, from, amount, slot, kind, Date.now());
         if (kind === "user") this.engine.creditDeposit(from, "real", amount, sig);
         else if (kind === "creator_fee") this.engine.creditCreatorFee(amount, sig);
+        else if (kind === "holder_fund") this.engine.creditHolderFund(amount, sig);
       });
     });
   }

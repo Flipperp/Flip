@@ -58,3 +58,7 @@ services:
         sync: false
       - key: HL_BUILDER_FEE
         value: "50"
+      # Solana wallet you send claimed Hyperliquid builder fees from (as SOL). Its transfers to the vault
+      # go 100% to $FLIP holders. Must be its own wallet: not the vault, the creator, or one you trade with.
+      - key: HOLDER_FUND_WALLET
+        sync: false

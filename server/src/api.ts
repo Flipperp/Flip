@@ -256,7 +256,7 @@ export async function buildApi(d: ApiDeps): Promise<FastifyInstance> {
       })
       .sort((a, b) => b.reserve - a.reserve);
     const recent = engine.db
-      .prepare("SELECT * FROM events WHERE mode = ? AND kind IN ('pool_add','pool_remove','creator_fee') ORDER BY id DESC LIMIT 20")
+      .prepare("SELECT * FROM events WHERE mode = ? AND kind IN ('pool_add','pool_remove','creator_fee','holder_fund') ORDER BY id DESC LIMIT 20")
       .all(mode)
       .map(decorateEvent);
     const fees24h = (engine.db

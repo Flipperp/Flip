@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS deposits (
   wallet TEXT NOT NULL,
   amount INTEGER NOT NULL,
   slot INTEGER NOT NULL,
-  kind TEXT NOT NULL DEFAULT 'user', -- user | creator_fee | ignored
+  kind TEXT NOT NULL DEFAULT 'user', -- user | creator_fee | holder_fund | ignored
   ts INTEGER NOT NULL,
   PRIMARY KEY (sig, ix)
 );

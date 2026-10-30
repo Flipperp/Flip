@@ -27,6 +27,8 @@ export const config = {
   /** Wallets excluded from holder rewards (team, treasury, CEX, etc.), comma separated. */
   holderExclusions: str("HOLDER_EXCLUSIONS").split(",").map((s) => s.trim()).filter(Boolean),
   adminKey: str("ADMIN_KEY"),
+  /** Solana wallet whose SOL transfers to the vault are paid entirely to token holders. */
+  holderFundWallet: str("HOLDER_FUND_WALLET").trim(),
   corsOrigin: str("CORS_ORIGIN", "*"),
 
   trading: {
