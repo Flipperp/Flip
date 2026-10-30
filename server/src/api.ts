@@ -14,6 +14,8 @@ import type { HolderRewards } from "./chain/holders.js";
 import { fillPrice } from "./engine/pricing.js";
 import type { HlLink } from "./hl/link.js";
 import type { PumpFeed } from "./oracle/pumpFeed.js";
+import type { Arena } from "./engine/arena.js";
+import { riskMessage } from "./engine/engine.js";
 
 export interface ApiDeps {
   cfg: Config;
@@ -28,6 +30,7 @@ export interface ApiDeps {
   /** Hyperliquid route, when enabled. */
   hl?: HlLink | null;
   pumpFeed?: PumpFeed | null;
+  arena?: Arena | null;
 }
 
 const modeSchema = z.enum(["real", "paper"]);
@@ -50,6 +53,14 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("faucet") }),
   z.object({ action: z.literal("withdraw"), amount: lamports }),
   z.object({ action: z.literal("revoke_sessions") }),
+  z.object({
+    action: z.literal("arena_bet"),
+    mode: modeSchema,
+    mint: z.string().min(32).max(44),
+    side: z.enum(["up", "down"]),
+    amount: lamports,
+    start: z.number().int().positive(),
+  }),
 ]);
 
 const short = (w: string) => (w.length > 10 ? `${w.slice(0, 4)}…${w.slice(-4)}` : w);
@@ -105,11 +116,24 @@ export async function buildApi(d: ApiDeps): Promise<FastifyInstance> {
       roomShort: st.roomShort,
       sideCap: st.sideCap,
       hl: d.hl?.view(m.mint) ?? null,
+      risk: st.risk
+        ? {
+            poolOpen: st.risk.poolOpen,
+            reason: st.risk.reason,
+            message: st.risk.reason ? riskMessage(st.risk.reason, st.risk) : null,
+            seasonedAt: st.risk.seasonedAt,
+            young: st.risk.young,
+            top10: st.risk.top10,
+            liqDrop: st.risk.liqDrop,
+            minHoldMs: st.risk.minHoldMs,
+            twapMs: st.risk.twapMs,
+          }
+        : null,
     };
   };
 
   const positionView = (p: Position, includeWallet = true) => {
-    const v = engine.prices.view(p.mint);
+    const v = engine.view(p.mint);
     let mark: number | null = null;
     let upnl: number | null = null;
     if (p.status === "open" && v) {
@@ -175,6 +199,8 @@ export async function buildApi(d: ApiDeps): Promise<FastifyInstance> {
     custody: { minDeposit: cfg.custody.minDeposit, maxWithdrawal: cfg.custody.maxWithdrawal, dailyWithdrawalPerWallet: cfg.custody.dailyWithdrawalPerWallet },
     solUsd: d.solUsd(),
     halted: { real: engine.halted("real"), paper: engine.halted("paper") },
+    arena: d.arena ? { enabled: cfg.arena.enabled, roundMs: cfg.arena.roundMs, priceWindowMs: cfg.arena.priceWindowMs, feeBps: cfg.arena.feeBps } : { enabled: false },
+    risk: { seasonHours: cfg.risk.seasonHours, youngHours: cfg.risk.youngHours, top10Max: cfg.risk.top10Max, liqDropMax: cfg.risk.liqDropMax },
     hl: d.hl
       ? {
           enabled: true,
@@ -188,6 +214,16 @@ export async function buildApi(d: ApiDeps): Promise<FastifyInstance> {
         }
       : { enabled: false },
   }));
+
+  app.get("/api/arena/:mint", async (req, reply) => {
+    if (!d.arena) return { enabled: false };
+    const { mint } = req.params as { mint: string };
+    if (!engine.market(mint)) return reply.code(404).send({ error: "not_found" });
+    const q = req.query as any;
+    const wallet = typeof q.wallet === "string" && q.wallet.length >= 32 && q.wallet.length <= 44 ? q.wallet : undefined;
+    d.oracle?.markHot(mint);
+    return d.arena.view(mint, parseMode(q), wallet);
+  });
 
   app.get("/api/new", async (req) => {
     const f = d.pumpFeed;
@@ -260,7 +296,7 @@ export async function buildApi(d: ApiDeps): Promise<FastifyInstance> {
     }
     if (!d.oracle) return reply.code(503).send({ error: "no_oracle", message: "Looking up new coins needs the live server. This demo has a fixed set of coins." });
     try {
-      const m = await d.oracle.resolve(mint);
+      const m = await d.oracle.resolve(mint, { bornAt: d.pumpFeed?.launchedAt(mint) });
       return marketView(m, "paper");
     } catch (e: any) {
       return reply.code(422).send({ error: "unsupported", message: String(e?.message ?? e) });
@@ -420,6 +456,11 @@ export async function buildApi(d: ApiDeps): Promise<FastifyInstance> {
         case "revoke_sessions":
           d.auth.revokeSessions(v.wallet);
           return { ok: true };
+        case "arena_bet": {
+          if (!d.arena) throw new TradeError("arena_off", "The Arena is off");
+          const r = d.arena.bet({ wallet: v.wallet, mode: a.mode, mint: a.mint, side: a.side, amount: a.amount, start: a.start });
+          return { ok: true, id: r.id };
+        }
       }
     } catch (e: any) {
       if (e instanceof TradeError) return reply.code(400).send({ error: e.code, message: e.message });
@@ -515,7 +556,7 @@ export async function buildApi(d: ApiDeps): Promise<FastifyInstance> {
         pool: { cash: pool.cash, nav: pool.nav, sharePrice: pool.sharePrice, outOnTrades: pool.outOnTrades, free: pool.free },
         markets: rows.map((m) => {
           const v = marketView(m, mode);
-          return { mint: v.mint, price: v.price, twap: v.twap, liquidity: v.liquidity, mcapSol: v.mcapSol, change1h: v.change1h, tradable: v.tradable, reason: v.reason, longOpen: v.longOpen, shortOpen: v.shortOpen, roomLong: v.roomLong, roomShort: v.roomShort, hl: v.hl };
+          return { mint: v.mint, price: v.price, twap: v.twap, liquidity: v.liquidity, mcapSol: v.mcapSol, change1h: v.change1h, tradable: v.tradable, reason: v.reason, longOpen: v.longOpen, shortOpen: v.shortOpen, roomLong: v.roomLong, roomShort: v.roomShort, hl: v.hl, risk: v.risk };
         }),
       });
     }

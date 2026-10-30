@@ -33,7 +33,7 @@ export interface PumpFeedOptions {
   resolveGapMs: number;
   /** Fetch launch images from the token's metadata URI. */
   fetchImages: boolean;
-  resolve: ((mint: string) => Promise<unknown>) | null;
+  resolve: ((mint: string, hint?: { bornAt?: number }) => Promise<unknown>) | null;
   onPair?: (p: NewPair) => void;
   onGraduation?: (g: Graduation) => void;
   fetchImpl?: typeof fetch;
@@ -218,7 +218,8 @@ export class PumpFeed {
       try {
         // A coin just migrated: its PumpSwap pool may take a few seconds to be readable.
         await new Promise((r) => setTimeout(r, this.opts.resolveGapMs));
-        await this.opts.resolve!(mint);
+        const seen = this.pairs.find((p) => p.mint === mint);
+        await this.opts.resolve!(mint, seen ? { bornAt: seen.createdAt } : undefined);
         this.counts.listed++;
       } catch {
         /* not resolvable yet or unsupported; the seeder or a user paste can add it later */
@@ -257,6 +258,11 @@ export class PumpFeed {
     const img = safeImageUrl(JSON.parse(text)?.image);
     const p = this.pairs.find((x) => x.mint === job.mint);
     if (p && img) p.image = img;
+  }
+
+  /** Launch time if this server saw the launch. */
+  launchedAt(mint: string): number | undefined {
+    return this.pairs.find((p) => p.mint === mint)?.createdAt;
   }
 
   recent(limit = 100) {

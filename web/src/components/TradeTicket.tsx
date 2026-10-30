@@ -54,7 +54,9 @@ export default function TradeTicket({ market, balance, tier, initialSide = "long
   const overBal = balance !== null && stake > balance;
   const halted = !!config.halted?.[mode];
   const blocked = !market.tradable
-    ? market.reason === "too_thin"
+    ? market.risk?.reason && market.risk.message && market.reason === market.risk.reason
+      ? market.risk.message
+      : market.reason === "too_thin"
       ? `Under ${sol(config.minLiquidity, 0)} SOL of liquidity, so this coin is close-only.`
       : market.reason === "warming_up"
         ? "Building the 30-second price average. Trading opens in a few seconds."
@@ -177,7 +179,7 @@ export default function TradeTicket({ market, balance, tier, initialSide = "long
         </div>
       )}
       <p className="fine">
-        Fills use the worse of the live price and its 30s average, plus {(config.spreadBps / 100).toFixed(2)}% spread. Closes itself at +{config.maxWinMult * 100}% or −100%. You can close after {config.minHoldMs / 1000}s and never owe more than your stake.
+        Fills use the worse of the live price and its {(market.risk?.twapMs ?? config.twapWindowMs) / 1000}s average, plus {(config.spreadBps / 100).toFixed(2)}% spread. Closes itself at +{config.maxWinMult * 100}% or −100%. You can close after {(market.risk?.minHoldMs ?? config.minHoldMs) / 1000}s and never owe more than your stake.
       </p>
     </section>
   );

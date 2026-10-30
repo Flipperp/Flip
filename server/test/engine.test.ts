@@ -17,7 +17,7 @@ function setup(overrides: Partial<typeof config> = {}) {
   const prices = new PriceStore(cfg.trading.twapWindowMs, cfg.trading.minTwapSamples, cfg.trading.staleMs, now);
   const engine = new Engine(db, prices, cfg, now);
   for (const m of [MINT, MINT2]) {
-    db.prepare("INSERT INTO markets (mint, symbol, name, venue, source, supply, added_at) VALUES (?, 'T', 'Test', 'pumpswap', '{}', 1e9, ?)").run(m, clock);
+    db.prepare("INSERT INTO markets (mint, symbol, name, venue, source, supply, added_at) VALUES (?, 'T', 'Test', 'pumpswap', '{}', 1e9, ?)").run(m, clock - 30 * 86_400_000);
   }
   const liq = 300 * SOL;
   /** Feed one price per second for `secs` seconds at a constant price. */

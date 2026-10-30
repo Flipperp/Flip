@@ -60,6 +60,8 @@ export const config = {
   splits: {
     profitFee: { pool: 6000, holders: 2500, treasury: 1500 },
     creatorFee: { pool: 5000, holders: 4000, treasury: 1000 },
+    /** Arena fees: the pool takes no risk in the Arena, so it takes no share. */
+    arenaFee: { treasury: 4000, holders: 6000, pool: 0 },
   },
 
   /** Holder tiers by time-weighted token balance (UI token units). */
@@ -121,6 +123,43 @@ export const config = {
     confirmChecks: num("HL_CONFIRM_CHECKS", 2),
     /** Slippage bound for market orders, as a fraction of mid. */
     slippage: num("HL_SLIPPAGE", 0.03),
+  },
+
+  /**
+   * When the pool will take the other side of a coin. Young coins are where insiders dump: in a
+   * sample of 2,193 pump.fun graduations, the median dump came 2.2 minutes after graduation and
+   * 38% fell 80% within 10 minutes. Coins that fail these rules trade in the Arena instead.
+   */
+  risk: {
+    /** No new pool positions until a coin is this old. */
+    seasonHours: num("SEASON_HOURS", 6),
+    /** Coins younger than this get tighter limits. */
+    youngHours: num("YOUNG_HOURS", 24),
+    /** Holder concentration is checked for coins younger than this. */
+    holderCheckHours: num("HOLDER_CHECK_HOURS", 72),
+    /** Pool closed to coins whose top 10 holders (excluding the curve/pool) own more than this share. */
+    top10Max: num("TOP10_MAX", 0.3),
+    /** New positions pause on a coin whose liquidity drops this much from its recent peak. */
+    liqDropMax: num("LIQ_DROP_MAX", 0.4),
+    liqDropWindowMs: 10 * 60_000,
+    youngSideCapMult: 0.5,
+    youngTwapMs: 120_000,
+    youngMinHoldMs: 60_000,
+  },
+
+  /** Arena: 5-minute up/down rounds between players. The pool never takes a side. */
+  arena: {
+    enabled: bool("ARENA_ENABLED", true),
+    roundMs: num("ARENA_ROUND_MS", 5 * 60_000),
+    /** Betting on a round closes this long before it starts. */
+    lockBufferMs: 10_000,
+    /** Lock and close prices are the average of samples over this window, so one wick can't decide a round. */
+    priceWindowMs: 10_000,
+    feeBps: num("ARENA_FEE_BPS", 300),
+    minBet: Math.round(0.01 * LAMPORTS),
+    maxBetPerRound: Math.round(num("ARENA_MAX_BET_SOL", 5) * LAMPORTS),
+    /** Coins need at least this much SOL liquidity for a meaningful price. */
+    minLiquidity: Math.round(num("ARENA_MIN_LIQ_SOL", 5) * LAMPORTS),
   },
 
   /** Live pump.fun launches and graduations (PumpPortal data feed). */

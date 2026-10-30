@@ -5,7 +5,7 @@ import { DEMO_HL_MAP, DEMO_HL_URL, installHlMock } from "./hlMock";
 
 export async function startBackend() {
   setSqlJs(await (initSqlJs as any)());
-  const [{ config }, { openDb }, { PriceStore }, { Engine }, { Auth }, { buildApi }, { startDemo }, { HlLink }] = await Promise.all([
+  const [{ config }, { openDb }, { PriceStore }, { Engine }, { Auth }, { buildApi }, { startDemo }, { HlLink }, { Arena }] = await Promise.all([
     import("../../../server/src/config"),
     import("../../../server/src/db"),
     import("../../../server/src/oracle/priceStore"),
@@ -14,6 +14,7 @@ export async function startBackend() {
     import("../../../server/src/api"),
     import("../../../server/src/demo"),
     import("../../../server/src/hl/link"),
+    import("../../../server/src/engine/arena"),
   ]);
   const cfg = {
     ...config,
@@ -23,10 +24,12 @@ export async function startBackend() {
   const db = openDb(":memory:");
   const prices = new PriceStore(cfg.trading.twapWindowMs, cfg.trading.minTwapSamples, cfg.trading.staleMs);
   const engine = new Engine(db, prices, cfg);
-  startDemo(db, engine, prices);
+  const arena = new Arena(engine, prices, cfg);
+  startDemo(db, engine, prices, arena);
   setInterval(() => {
     try {
       engine.tick();
+      arena.tick();
     } catch (e) {
       console.error(e);
     }
@@ -43,6 +46,7 @@ export async function startBackend() {
   });
   const app: any = await buildApi({
     hl,
+    arena,
     cfg,
     engine,
     auth,

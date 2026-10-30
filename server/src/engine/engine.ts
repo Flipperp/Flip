@@ -4,6 +4,7 @@ import { kvGet, kvSet } from "../db.js";
 import type { Config, Mode } from "../config.js";
 import type { PriceStore, PriceView } from "../oracle/priceStore.js";
 import { fillPrice, positionPnl, profitFee, returnRatio, split, worstCasePayout, type Side } from "./pricing.js";
+import { Guard, type Risk } from "./guard.js";
 
 export class TradeError extends Error {
   constructor(public code: string, message: string) {
@@ -11,8 +12,8 @@ export class TradeError extends Error {
   }
 }
 
-export type Bucket = "pool_cash" | "holders_pot" | "treasury" | "locked" | "pending_withdrawals" | "external_in" | "external_out";
-const BUCKETS: Bucket[] = ["pool_cash", "holders_pot", "treasury", "locked", "pending_withdrawals", "external_in", "external_out"];
+export type Bucket = "pool_cash" | "holders_pot" | "treasury" | "locked" | "pending_withdrawals" | "arena_escrow" | "external_in" | "external_out";
+const BUCKETS: Bucket[] = ["pool_cash", "holders_pot", "treasury", "locked", "pending_withdrawals", "arena_escrow", "external_in", "external_out"];
 
 export interface Position {
   id: number;
@@ -47,6 +48,7 @@ export interface MarketRow {
   added_at: number;
   last_viewed: number;
   listed: number;
+  born_at?: number | null;
 }
 
 export interface OpenArgs {
@@ -61,7 +63,28 @@ export interface OpenArgs {
 
 export const HOUSE = "house";
 
+const hours = (ms: number) => (ms >= 3600_000 ? `${Math.floor(ms / 3600_000)}h ${Math.floor((ms % 3600_000) / 60_000)}m` : `${Math.max(1, Math.ceil(ms / 60_000))}m`);
+
+/** User-facing reason a coin can't be opened against the pool. */
+export function riskMessage(reason: string | null, risk: Risk | null | undefined, now = Date.now()): string {
+  switch (reason) {
+    case "too_thin":
+      return "Liquidity too thin to open";
+    case "too_new":
+      return `Too new for the pool. Opens in ${hours((risk?.seasonedAt ?? now) - now)}. Trade it in the Arena meanwhile.`;
+    case "concentrated":
+      return `The top 10 wallets hold ${Math.round((risk?.top10 ?? 0) * 100)}% of supply, so the pool stays out. The Arena is open.`;
+    case "holders_unknown":
+      return "Checking who holds this coin. The pool opens once that's done.";
+    case "liquidity_drop":
+      return `Liquidity fell ${Math.round((risk?.liqDrop ?? 0) * 100)}% in the last 10 minutes. New positions are paused on this coin.`;
+    default:
+      return "Price not ready yet";
+  }
+}
+
 export class Engine extends EventEmitter {
+  public guard: Guard;
   constructor(
     public db: DB,
     public prices: PriceStore,
@@ -70,6 +93,7 @@ export class Engine extends EventEmitter {
   ) {
     super();
     this.setMaxListeners(100);
+    this.guard = new Guard(cfg, prices, now);
     for (const mode of ["real", "paper"] as Mode[]) {
       for (const b of BUCKETS) db.prepare("INSERT OR IGNORE INTO book (mode, bucket, amount) VALUES (?, ?, 0)").run(mode, b);
     }
@@ -100,7 +124,8 @@ export class Engine extends EventEmitter {
     return out;
   }
 
-  private addBucket(mode: Mode, b: Bucket, delta: number) {
+  /** @internal ledger primitive; callers must run inside tx(). */
+  addBucket(mode: Mode, b: Bucket, delta: number) {
     if (!Number.isSafeInteger(delta)) throw new Error(`non-integer bucket delta ${delta}`);
     this.db.prepare("UPDATE book SET amount = amount + ? WHERE mode = ? AND bucket = ?").run(delta, mode, b);
   }
@@ -110,7 +135,8 @@ export class Engine extends EventEmitter {
     return r?.balance ?? 0;
   }
 
-  private addBalance(wallet: string, mode: Mode, delta: number) {
+  /** @internal ledger primitive; callers must run inside tx(). */
+  addBalance(wallet: string, mode: Mode, delta: number) {
     if (!Number.isSafeInteger(delta)) throw new Error(`non-integer balance delta ${delta}`);
     this.db.prepare("INSERT OR IGNORE INTO accounts (wallet, mode, balance) VALUES (?, ?, 0)").run(wallet, mode);
     const r = this.db.prepare("UPDATE accounts SET balance = balance + ? WHERE wallet = ? AND mode = ? AND balance + ? >= 0").run(delta, wallet, mode, delta);
@@ -132,7 +158,8 @@ export class Engine extends EventEmitter {
     if (r.changes !== 1) throw new TradeError("insufficient_shares", "Not enough pool shares");
   }
 
-  private event(mode: Mode, kind: string, wallet: string | null, mint: string | null, amount: number, ref?: string | number, data?: object) {
+  /** @internal */
+  event(mode: Mode, kind: string, wallet: string | null, mint: string | null, amount: number, ref?: string | number, data?: object) {
     const ts = this.now();
     const info = this.db
       .prepare("INSERT INTO events (ts, mode, kind, wallet, mint, amount, ref, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
@@ -159,7 +186,7 @@ export class Engine extends EventEmitter {
     this.emit("halt", { mode, reason: null });
   }
 
-  private assertLive(mode: Mode) {
+  assertLive(mode: Mode) {
     // The site has one mode: test balances before launch, real money after. Never both.
     if (mode === "paper" && this.cfg.realEnabled) throw new TradeError("test_off", "Test trading is off: real trading is live");
     if (mode === "real" && !this.cfg.realEnabled) throw new TradeError("real_disabled", "Real trading is not enabled");
@@ -211,32 +238,47 @@ export class Engine extends EventEmitter {
     return total;
   }
 
+  /** Pool risk for a coin: age gate, holder concentration, liquidity crash, young-coin limits. */
+  risk(mint: string): Risk | null {
+    const m = this.market(mint);
+    return m ? this.guard.assess(m) : null;
+  }
+
+  /** Price view using the coin's averaging window (longer for young coins). */
+  view(mint: string): PriceView | null {
+    const r = this.risk(mint);
+    return this.prices.view(mint, r?.twapMs ?? this.cfg.trading.twapWindowMs);
+  }
+
   markPnl(p: Position): number {
-    const v = this.prices.view(p.mint);
+    const v = this.view(p.mint);
     if (!v) return 0;
     const exit = fillPrice("close", p.side, v.live, v.twap, this.cfg.trading.spreadBps);
     return positionPnl(p, exit, this.cfg.trading.maxWinMult);
   }
 
-  sideCap(mode: Mode, v: PriceView): number {
+  sideCap(mode: Mode, v: PriceView, mult = 1): number {
     const t = this.cfg.trading;
     return Math.max(
       0,
-      Math.floor(Math.min(t.maxSidePerCoin, v.liquidity * t.sideCapLiquidityFrac, this.bucket(mode, "pool_cash") * t.sideCapPoolFrac)),
+      Math.floor(Math.min(t.maxSidePerCoin, v.liquidity * t.sideCapLiquidityFrac, this.bucket(mode, "pool_cash") * t.sideCapPoolFrac) * mult),
     );
   }
 
   marketState(mode: Mode, mint: string) {
-    const v = this.prices.view(mint);
+    const risk = this.risk(mint);
+    const v = this.prices.view(mint, risk?.twapMs ?? this.cfg.trading.twapWindowMs);
     const open = this.openPositions(mode, mint);
     const longOpen = open.filter((p) => p.side === "long").reduce((a, p) => a + p.stake, 0);
     const shortOpen = open.filter((p) => p.side === "short").reduce((a, p) => a + p.stake, 0);
-    const tradable = !!v && v.ready && v.liquidity >= this.cfg.trading.minLiquidity;
-    const cap = v ? this.sideCap(mode, v) : 0;
+    const priceOk = !!v && v.ready && v.liquidity >= this.cfg.trading.minLiquidity;
+    const tradable = priceOk && (risk?.poolOpen ?? true);
+    const cap = v ? this.sideCap(mode, v, risk?.sideCapMult ?? 1) : 0;
     return {
       price: v,
+      risk,
       tradable,
-      reason: !v ? "no_price" : !v.ready ? "warming_up" : v.liquidity < this.cfg.trading.minLiquidity ? "too_thin" : null,
+      reason: !v ? "no_price" : !v.ready ? "warming_up" : v.liquidity < this.cfg.trading.minLiquidity ? "too_thin" : (risk?.reason ?? null),
       longOpen,
       shortOpen,
       sideCap: cap,
@@ -273,7 +315,7 @@ export class Engine extends EventEmitter {
 
     return this.tx(() => {
       const st = this.marketState(a.mode, a.mint);
-      if (!st.tradable || !st.price) throw new TradeError(st.reason ?? "not_tradable", st.reason === "too_thin" ? "Liquidity too thin to open" : "Price not ready yet");
+      if (!st.tradable || !st.price) throw new TradeError(st.reason ?? "not_tradable", riskMessage(st.reason, st.risk));
       const room = a.side === "long" ? st.roomLong : st.roomShort;
       if (a.stake > room) throw new TradeError("size_cap", `Only ${(room / this.cfg.LAMPORTS).toFixed(3)} SOL of room left on this side`);
       const openCount = (this.db.prepare("SELECT COUNT(*) AS n FROM positions WHERE wallet = ? AND mode = ? AND status = 'open'").get(a.wallet, a.mode) as { n: number }).n;
@@ -310,9 +352,10 @@ export class Engine extends EventEmitter {
       if (wallet !== null && p.wallet !== wallet) throw new TradeError("not_owner", "Not your position");
       if (reason === "manual") {
         if (this.halted(p.mode)) throw new TradeError("halted", "Trading is paused");
-        if (this.now() - p.opened_at < t.minHoldMs) throw new TradeError("min_hold", `Positions can close after ${t.minHoldMs / 1000}s`);
+        const hold = this.risk(p.mint)?.minHoldMs ?? t.minHoldMs;
+        if (this.now() - p.opened_at < hold) throw new TradeError("min_hold", `Positions on this coin can close after ${hold / 1000}s`);
       }
-      const v = this.prices.view(p.mint);
+      const v = this.view(p.mint);
       const fresh = v && this.now() - v.updatedAt <= t.staleMs;
       if (!v || !fresh) throw new TradeError("stale_price", "Price unavailable, try again shortly");
       const exit = fillPrice("close", p.side, v.live, v.twap, t.spreadBps);
@@ -347,7 +390,7 @@ export class Engine extends EventEmitter {
     const t = this.cfg.trading;
     const closed: number[] = [];
     for (const p of this.allOpenPositions()) {
-      const v = this.prices.view(p.mint);
+      const v = this.view(p.mint);
       if (!v || this.now() - v.updatedAt > t.staleMs) continue;
       const exit = fillPrice("close", p.side, v.live, v.twap, t.spreadBps);
       const r = returnRatio(p.side, p.leverage, p.entry_price, exit, t.maxWinMult);
@@ -561,11 +604,13 @@ export class Engine extends EventEmitter {
     const users = (this.db.prepare("SELECT COALESCE(SUM(balance), 0) AS s FROM accounts WHERE mode = ?").get(mode) as { s: number }).s;
     const locked = (this.db.prepare("SELECT COALESCE(SUM(stake), 0) AS s FROM positions WHERE mode = ? AND status = 'open'").get(mode) as { s: number }).s;
     const pending = (this.db.prepare("SELECT COALESCE(SUM(amount), 0) AS s FROM withdrawals WHERE status IN ('pending','sending')").get() as { s: number }).s;
-    const held = users + b.pool_cash + b.holders_pot + b.treasury + b.locked + b.pending_withdrawals;
+    const escrow = (this.db.prepare("SELECT COALESCE(SUM(up_pot + down_pot), 0) AS s FROM arena_rounds WHERE mode = ? AND status = 'open'").get(mode) as { s: number }).s;
+    const held = users + b.pool_cash + b.holders_pot + b.treasury + b.locked + b.pending_withdrawals + (b.arena_escrow ?? 0);
     const net = b.external_in - b.external_out;
     const problems: string[] = [];
     if (held !== net) problems.push(`held ${held} != net external ${net}`);
     if (locked !== b.locked) problems.push(`locked bucket ${b.locked} != open stakes ${locked}`);
+    if (escrow !== (b.arena_escrow ?? 0)) problems.push(`arena escrow ${b.arena_escrow} != open pots ${escrow}`);
     if (mode === "real" && pending !== b.pending_withdrawals) problems.push(`pending bucket ${b.pending_withdrawals} != pending rows ${pending}`);
     if (b.pool_cash < 0) problems.push(`pool cash negative ${b.pool_cash}`);
     if (b.holders_pot < 0) problems.push(`holders pot negative ${b.holders_pot}`);

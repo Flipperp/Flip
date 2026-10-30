@@ -78,6 +78,58 @@ export default function How() {
         </div>
       </dl>
 
+      <h2>When the pool steps aside</h2>
+      <p className="lede">
+        The pool is the other side of every pool trade, so anyone who controls a coin's price could farm it: open a short, dump their bag, collect. That's cheapest on brand-new coins. In one sample of 2,193 pump.fun graduations, the median dump came 2.2 minutes after graduation and 38% fell 80% within ten minutes. So the pool stays out of those coins, and the Arena covers them.
+      </p>
+      <dl className="rules panel panel-body">
+        <div>
+          <dt>Age</dt>
+          <dd>No new pool positions until a coin is {c.risk?.seasonHours ?? 6} hours old.</dd>
+        </div>
+        <div>
+          <dt>Holders</dt>
+          <dd>For coins under three days old, the top 10 wallets (not counting the curve or pool) must hold under {Math.round((c.risk?.top10Max ?? 0.3) * 100)}% of supply. Checked on-chain every few minutes.</dd>
+        </div>
+        <div>
+          <dt>Young coins</dt>
+          <dd>Under {c.risk?.youngHours ?? 24} hours old: half the usual size cap, fills use a 2-minute average instead of 30 seconds, and positions can close after 60 seconds.</dd>
+        </div>
+        <div>
+          <dt>Crashes</dt>
+          <dd>If a coin's liquidity drops {Math.round((c.risk?.liqDropMax ?? 0.4) * 100)}% from its peak in ten minutes, new positions pause. Open ones keep settling normally.</dd>
+        </div>
+      </dl>
+
+      {c.arena?.enabled && (
+        <>
+          <h2>Arena</h2>
+          <p className="lede">Up-or-down rounds on any coin, including ones too new for the pool. You play against other players; the pool never takes a side.</p>
+          <dl className="rules panel panel-body">
+            <div>
+              <dt>Rounds</dt>
+              <dd>Every {Math.round((c.arena.roundMs ?? 300_000) / 60_000)} minutes. You bet on the next round while the current one runs. Betting closes 10 seconds before it starts, so nobody bets after seeing the move.</dd>
+            </div>
+            <div>
+              <dt>Prices</dt>
+              <dd>The lock and close prices are {(c.arena.priceWindowMs ?? 10_000) / 1000}-second averages of the coin's on-chain price. Up wins if close is above lock.</dd>
+            </div>
+            <div>
+              <dt>Payouts</dt>
+              <dd>Winners split the whole pot in proportion to their bets, after a {((c.arena.feeBps ?? 300) / 100).toFixed(0)}% fee to ${c.brand.ticker} holders and the treasury. The multiples on the buttons update as bets come in.</dd>
+            </div>
+            <div>
+              <dt>Refunds</dt>
+              <dd>A round refunds every bet in full if one side is empty, the price doesn't change, or the price was unavailable at lock or close.</dd>
+            </div>
+            <div>
+              <dt>Fair warning</dt>
+              <dd>Someone who can move a coin's price can still win a round. What they can win is the other side's pot, nothing more.</dd>
+            </div>
+          </dl>
+        </>
+      )}
+
       {c.hl?.enabled && (
         <>
           <h2>Two routes: Hyperliquid or the Flip pool</h2>

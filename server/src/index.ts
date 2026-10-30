@@ -16,6 +16,8 @@ import { buildApi } from "./api.js";
 import { startDemo } from "./demo.js";
 import { HlLink, parseMap } from "./hl/link.js";
 import { PumpFeed } from "./oracle/pumpFeed.js";
+import { Arena } from "./engine/arena.js";
+import { HolderCheck } from "./oracle/holderCheck.js";
 import { pruneMarkets } from "./oracle/prune.js";
 
 async function main() {
@@ -25,6 +27,7 @@ async function main() {
   const prices = new PriceStore(cfg.trading.twapWindowMs, cfg.trading.minTwapSamples, cfg.trading.staleMs);
   const engine = new Engine(db, prices, cfg);
   engine.on("error", (e) => console.error("[engine]", e?.message ?? e));
+  const arena = new Arena(engine, prices, cfg);
 
   const vault = loadKeypair(cfg.vaultSecret);
   const creator = loadKeypair(cfg.creatorSecret);
@@ -58,12 +61,12 @@ async function main() {
   const oracle = new ChainOracle(conn, db, prices, {
     pollMs: Number(process.env.POLL_MS ?? 1000),
     slowPollMs: Number(process.env.SLOW_POLL_MS ?? 15_000),
-    hotMints: () => [...new Set(engine.allOpenPositions().map((p) => p.mint))],
+    hotMints: () => [...new Set([...engine.allOpenPositions().map((p) => p.mint), ...arena.activeMints()])],
   });
   const demo = process.env.DEMO === "true";
   if (demo) {
     if (cfg.realEnabled) throw new Error("DEMO=true cannot run with REAL_ENABLED=true");
-    startDemo(db, engine, prices);
+    startDemo(db, engine, prices, arena);
   } else oracle.start();
 
   const seeder = new MarketSeeder(oracle, {
@@ -75,6 +78,18 @@ async function main() {
   });
   if (!demo && process.env.DISABLE_SEEDER !== "true") seeder.start();
   hl?.start();
+  // Hyperliquid-linked coins are established majors: skip the age and holder rules for them.
+  const hlMints = new Set(hl?.mints ?? []);
+  engine.guard.setExempt((mint) => hlMints.has(mint));
+
+  const holderCheck = demo ? null : new HolderCheck(conn, db, engine.guard, { everyMs: 5 * 60_000, gapMs: 1500, maxPerRun: 25 });
+  holderCheck?.start();
+  const bornTimer = demo
+    ? null
+    : setInterval(() => {
+        oracle.backfillBornAt().catch(() => {});
+      }, 10 * 60_000);
+  if (!demo) oracle.backfillBornAt().catch(() => {});
 
   // Live pump.fun launches and graduations. Graduated coins are verified on-chain and listed.
   const pumpFeed =
@@ -101,12 +116,17 @@ async function main() {
     }
   }, 10 * 60_000);
 
-  // Settlement loop: auto-close max wins and liquidations every second.
+  // Settlement loop: auto-close max wins and liquidations, lock and settle Arena rounds.
   const tickTimer = setInterval(() => {
     try {
       engine.tick();
     } catch (e: any) {
       console.error("[tick]", e?.message ?? e);
+    }
+    try {
+      arena.tick();
+    } catch (e: any) {
+      console.error("[arena]", e?.message ?? e);
     }
   }, 1000);
 
@@ -174,6 +194,7 @@ async function main() {
     staticDir: process.env.STATIC_DIR ?? "../web/dist",
     hl,
     pumpFeed,
+    arena,
     status: () => ({
       hyperliquid: hl ? { error: hl.lastError, lastPoll: hl.lastPoll, builderValue: hl.builderValue, builderReady: hl.builderReady(), routable: hl.all().filter((l) => l.routable).map((l) => l.coin) } : null,
       oracle: { error: oracle.lastError, tracked: prices.mints().length },
@@ -182,6 +203,7 @@ async function main() {
       creatorFees: sweeper ? { error: sweeper.lastError, lastSweep: sweeper.lastSweep } : null,
       holders: tracker ? { error: tracker.lastError, count: tracker.lastCount } : null,
       seeder: { error: seeder.lastError },
+      holderCheck: holderCheck ? { error: holderCheck.lastError } : null,
       pumpFeed: pumpFeed ? { connected: pumpFeed.connected, error: pumpFeed.lastError, lastMessageAt: pumpFeed.lastMessageAt, ...pumpFeed.counts } : null,
       audit: auditor.last,
     }),
@@ -194,6 +216,8 @@ async function main() {
     clearInterval(solTimer);
     clearInterval(pruneTimer);
     clearInterval(pruneTimer2);
+    if (bornTimer) clearInterval(bornTimer);
+    holderCheck?.stop();
     pumpFeed?.stop();
     oracle.stop();
     seeder.stop();

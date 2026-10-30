@@ -6,6 +6,7 @@ import { pct, signedSol, sol } from "../lib/format";
 import { CoinAvatar, OiBar, TradesColumn, useNow } from "../components/bits";
 import TradeTicket from "../components/TradeTicket";
 import HlTicket from "../components/HlTicket";
+import ArenaTicket from "../components/ArenaTicket";
 import { HlPositions } from "../components/HlPositions";
 import { useHl } from "../lib/hl";
 import CandleChart, { type ChartLine } from "../components/CandleChart";
@@ -141,11 +142,11 @@ function AccountBox({ me, onChange }: { me: Me | null; onChange: () => void }) {
 export default function Trade() {
   const { mint = "" } = useParams();
   const [params] = useSearchParams();
-  const { mode, markets, tape, watch, wallet, walletBump } = useApp();
+  const { mode, markets, tape, watch, wallet, walletBump, config } = useApp();
   const [tab, setTab] = useState<"positions" | "hl" | "history" | "top">("positions");
   const hl = useHl();
   const hlOpen = hl.account?.positions.length ?? 0;
-  const [venuePick, setVenue] = useState<"hl" | "pool" | null>(null);
+  const [venuePick, setVenue] = useState<"hl" | "pool" | "arena" | null>(null);
   const detail = usePoll(() => get<Detail>(`/api/market/${mint}?mode=${mode}`), [mint, mode, walletBump], 5000);
   const me = usePoll(() => (wallet ? get<Me>(`/api/me?mode=${mode}&wallet=${wallet}`) : Promise.resolve(null)), [wallet, mode, walletBump], 2000);
 
@@ -187,9 +188,14 @@ export default function Trade() {
   if (!m) return <div className="empty">Loading market…</div>;
 
   const initialSide = params.get("side") === "short" ? "short" : "long";
-  // Coins with a live Hyperliquid perp default to the order book: no pool risk and deeper size.
-  const venue: "hl" | "pool" = venuePick ?? (m.hl?.routable ? "hl" : "pool");
   const origin = params.get("origin") ?? undefined;
+  const direct = !origin || origin === "direct";
+  const arenaOn = !!config?.arena?.enabled;
+  // Default route: Hyperliquid's book when the coin has a live perp, the pool when it's open,
+  // and the Arena for coins the pool won't take (too new, concentrated, crashing).
+  const poolClosedByRisk = !!m.risk && !m.risk.poolOpen;
+  const venue: "hl" | "pool" | "arena" =
+    !direct ? "pool" : (venuePick ?? (m.hl?.routable ? "hl" : poolClosedByRisk && arenaOn ? "arena" : "pool"));
   const closedCount = me.data?.closed.length ?? 0;
 
   return (
@@ -214,20 +220,35 @@ export default function Trade() {
         </div>
       </section>
       <aside className="t-ticket">
-        {m.hl && (!origin || origin === "direct") && (
-          <div className="venue-tabs" role="radiogroup" aria-label="Route">
-            <button role="radio" aria-checked={venue === "hl"} className={venue === "hl" ? "on" : ""} onClick={() => setVenue("hl")}>
-              Hyperliquid
-              <small>{m.hl.routable ? "order book" : "off"}</small>
-            </button>
+        {direct && (m.hl || arenaOn) && (
+          <div className="venue-tabs" role="radiogroup" aria-label="Route" style={{ gridTemplateColumns: `repeat(${(m.hl ? 1 : 0) + 1 + (arenaOn ? 1 : 0)}, 1fr)` }}>
+            {m.hl && (
+              <button role="radio" aria-checked={venue === "hl"} className={venue === "hl" ? "on" : ""} onClick={() => setVenue("hl")}>
+                Hyperliquid
+                <small>{m.hl.routable ? "order book" : "off"}</small>
+              </button>
+            )}
             <button role="radio" aria-checked={venue === "pool"} className={venue === "pool" ? "on" : ""} onClick={() => setVenue("pool")}>
               Flip pool
-              <small>SOL · instant</small>
+              <small>{poolClosedByRisk ? (m.risk?.reason === "too_new" ? "too new" : "paused") : "SOL · instant"}</small>
             </button>
+            {arenaOn && (
+              <button role="radio" aria-checked={venue === "arena"} className={venue === "arena" ? "on" : ""} onClick={() => setVenue("arena")}>
+                Arena
+                <small>{Math.round((config?.arena?.roundMs ?? 300_000) / 60_000)}-min rounds</small>
+              </button>
+            )}
           </div>
         )}
-        {venue === "hl" && m.hl && (!origin || origin === "direct") ? (
+        {venue === "hl" && m.hl ? (
           <HlTicket market={m} link={m.hl} tier={me.data?.tier ?? 0} initialSide={initialSide} />
+        ) : venue === "arena" ? (
+          <>
+            <ArenaTicket market={m} />
+            <div style={{ padding: "0 12px 12px" }}>
+              <AccountBox me={me.data} onChange={() => me.reload()} />
+            </div>
+          </>
         ) : (
           <>
             <TradeTicket market={m} balance={wallet ? (me.data?.balance ?? null) : null} tier={me.data?.tier ?? 0} initialSide={initialSide} origin={origin} onOpened={() => me.reload()} />

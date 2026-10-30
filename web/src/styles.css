@@ -1354,3 +1354,107 @@ input[type="range"] {
 .spacer {
   flex: 1;
 }
+
+/* ---------- Arena ---------- */
+.arena-ticket {
+  padding: 12px;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+.arena-badge {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: var(--r-sm);
+  color: var(--brand);
+  background: var(--brand-bg);
+}
+.arena-pitch {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.arena-round {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+}
+.arena-next {
+  border-color: var(--line-2);
+}
+.arena-round-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-weight: 600;
+}
+.arena-round-head .mono {
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 12px;
+}
+.arena-pots {
+  display: grid;
+  gap: 4px;
+}
+.arena-bar {
+  display: flex;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--surface-3);
+}
+.arena-bar .up {
+  background: var(--long);
+}
+.arena-bar .down {
+  background: var(--short);
+}
+.arena-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.arena-buttons .btn {
+  display: grid;
+  gap: 1px;
+  padding: 9px;
+}
+.arena-buttons .btn small {
+  font-family: var(--mono);
+  font-weight: 500;
+  opacity: 0.8;
+}
+.arena-recent {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.arena-chip {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--faint);
+}
+.arena-chip.up {
+  color: var(--long);
+  background: var(--long-bg);
+}
+.arena-chip.down {
+  color: var(--short);
+  background: var(--short-bg);
+}
+.arena-mine {
+  display: grid;
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}

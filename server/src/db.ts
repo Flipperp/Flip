@@ -111,6 +111,37 @@ CREATE TABLE IF NOT EXISTS withdrawals (
 );
 CREATE INDEX IF NOT EXISTS withdrawals_status ON withdrawals(status);
 
+-- Arena: one row per coin per round (start = round start, ms). Pots are escrowed in lamports.
+CREATE TABLE IF NOT EXISTS arena_rounds (
+  mint TEXT NOT NULL,
+  mode TEXT NOT NULL,
+  start INTEGER NOT NULL,
+  up_pot INTEGER NOT NULL DEFAULT 0,
+  down_pot INTEGER NOT NULL DEFAULT 0,
+  lock_price REAL,
+  close_price REAL,
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','settled','refunded')),
+  result TEXT,
+  fee INTEGER NOT NULL DEFAULT 0,
+  settled_at INTEGER,
+  PRIMARY KEY (mint, mode, start)
+);
+CREATE INDEX IF NOT EXISTS arena_rounds_status ON arena_rounds(status, start);
+
+CREATE TABLE IF NOT EXISTS arena_bets (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  mint TEXT NOT NULL,
+  mode TEXT NOT NULL,
+  start INTEGER NOT NULL,
+  wallet TEXT NOT NULL,
+  side TEXT NOT NULL CHECK (side IN ('up','down')),
+  amount INTEGER NOT NULL CHECK (amount > 0),
+  payout INTEGER,
+  placed_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS arena_bets_round ON arena_bets(mint, mode, start);
+CREATE INDEX IF NOT EXISTS arena_bets_wallet ON arena_bets(wallet, mode, id);
+
 CREATE TABLE IF NOT EXISTS nonces (
   signer TEXT NOT NULL,
   nonce TEXT NOT NULL,
@@ -174,7 +205,15 @@ export function openDb(file: string): DB {
   if (file !== ":memory:") fs.mkdirSync(path.dirname(path.resolve(file)), { recursive: true });
   const db = new Database(file);
   db.exec(SCHEMA);
+  migrate(db);
   return db;
+}
+
+/** Additive migrations for databases created by earlier versions. */
+function migrate(db: DB) {
+  const cols = (db.prepare("PRAGMA table_info(markets)").all() as { name: string }[]).map((c) => c.name);
+  // When the coin was created (launch, or pool creation if launch is unknown). Null = unknown.
+  if (!cols.includes("born_at")) db.exec("ALTER TABLE markets ADD COLUMN born_at INTEGER");
 }
 
 export function kvGet(db: DB, k: string): string | undefined {

@@ -6,7 +6,7 @@ Long or short any Solana coin at 2x, 5x or 10x. Coins that also trade as a Hyper
 
 ```bash
 npm run install:all
-npm test            # 44 tests: engine math, solvency, auth, holder rewards, deposits, Hyperliquid links and order math
+npm test            # 61 tests: engine math, solvency, auth, holder rewards, deposits, Hyperliquid links and order math
 npm run demo        # http://localhost:8787 with simulated markets and bot traders
 ```
 
@@ -49,6 +49,32 @@ The pool's maximum-win check nets longs against shorts on the same coin. It uses
 | $TOKEN creator fees (claimed from pump.fun automatically) | 50% | 40% | 10% |
 
 Inverse sends 80% of both to its pool and nothing to holders.
+
+### Pool risk rules
+
+The pool is the counterparty, so whoever controls a coin's price can farm it: open a short, dump the bag, collect. In a sample of 2,193 pump.fun graduations, the median dump came 2.2 minutes after graduation and 38% fell 80% within ten minutes. The pool therefore refuses new positions when:
+
+| Rule | Default | Setting |
+|---|---|---|
+| Coin younger than | 6 hours | `SEASON_HOURS` |
+| Top 10 holders (excluding curve/pool vaults) own more than | 30%, checked on-chain for coins under 3 days | `TOP10_MAX`, `HOLDER_CHECK_HOURS` |
+| Liquidity fell from its 10-minute peak by more than | 40% | `LIQ_DROP_MAX` |
+
+- **Coins under 24 hours old** (`YOUNG_HOURS`) also get half the side cap, a 2-minute fill average and a 60-second minimum hold.
+- **Coin age** is the earliest DexScreener pair (pump.fun lists the curve from launch) or the launch time seen on the live feed. It falls back to when Flip listed the coin, so an unknown age can only look younger.
+- **Hyperliquid-linked coins are exempt.** They're established majors.
+- **These rules raise the cost of an attack; they don't make it impossible.** A patient insider can wait out the gate, split a bag across wallets, or dump slowly. The per-coin side cap is the hard backstop.
+
+### Arena
+
+Up/down rounds on any coin with at least `ARENA_MIN_LIQ_SOL` (5) of liquidity, played between users.
+- **Rounds:** every `ARENA_ROUND_MS` (5 minutes). Bets for a round close 10 seconds before it starts.
+- **Prices:** lock and close are 10-second averages of the on-chain price.
+- **Payouts:** winners split the whole pot pro rata after `ARENA_FEE_BPS` (3%). The fee goes 60% to holders and 40% to the treasury, and the pool gets nothing because it takes no side.
+- **Refunds:** a round refunds in full when one side is empty, the price is unchanged, or a price is missing.
+- **Limit:** `ARENA_MAX_BET_SOL` (5) per wallet per round.
+- **Accounting:** escrowed stakes sit in the `arena_escrow` bucket and are part of the conservation audit.
+- **Manipulation:** an insider who moves the price can still win a round, but only the other side's pot.
 
 ### New pairs
 
@@ -153,4 +179,5 @@ Every transfer from that wallet goes 100% to the holder pot and is paid out at t
 - **Custody.** This is custodial. The hot wallet key is the whole treasury, so if the server is compromised, users' funds are gone. Before real volume, keep the vault balance low and move excess to cold storage. An audit is worth considering.
 - **Pool risk.** The pool can lose: if traders win, LP share value drops.
 - **Hyperliquid route.** Users trade real USDC even while the site is in Practice mode; the ticket labels it. Agent keys live in browser storage like the pool's session keys: an XSS bug could place trades (not withdraw) for connected users, so keep the frontend's dependencies tight.
+- **Arena.** Up/down rounds on price are a betting product. Expect regulators to treat them as gambling even more readily than the pool.
 - **Legal exposure.** House-banked leveraged long/short betting for the public is likely to be treated as unregistered derivatives or gambling in the US, and Washington is strict on online gambling. Talk to a lawyer before taking real money. Geoblocking US users is the usual minimum.

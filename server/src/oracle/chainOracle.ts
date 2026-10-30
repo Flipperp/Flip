@@ -92,7 +92,7 @@ export class ChainOracle {
   }
 
   /** Find where a mint trades and add it as a market. Throws if unsupported. */
-  async resolve(mint: string): Promise<MarketRow> {
+  async resolve(mint: string, hint?: { bornAt?: number }): Promise<MarketRow> {
     const existing = this.db.prepare("SELECT * FROM markets WHERE mint = ?").get(mint) as MarketRow | undefined;
     if (existing) {
       // listed = 2 means pruned for inactivity: asking for it again puts it back. listed = 0 is an
@@ -110,8 +110,33 @@ export class ChainOracle {
     this.db
       .prepare("INSERT OR REPLACE INTO markets (mint, symbol, name, image, venue, source, supply, decimals, added_at, last_viewed, listed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)")
       .run(mint, r.symbol, r.name, r.image, r.venue, JSON.stringify(r.source), r.supply, r.decimals, now, now);
+    this.fillBornAt(mint, hint?.bornAt).catch(() => {});
     this.hot.add(mint);
     return this.db.prepare("SELECT * FROM markets WHERE mint = ?").get(mint) as MarketRow;
+  }
+
+  /**
+   * When the coin was created. The earliest DexScreener pair (pump.fun lists the curve from launch)
+   * or a launch time seen on the live feed. Unknown stays null and the risk rules fall back to
+   * when Flip first listed the coin, which can only make a coin look younger, never older.
+   */
+  async fillBornAt(mint: string, hint?: number) {
+    let t = hint && hint > 1.5e12 ? hint : null;
+    if (!t) {
+      const pairs: any[] = await fetchJson(`https://api.dexscreener.com/token-pairs/v1/solana/${mint}`).catch(() => []);
+      const ts = (Array.isArray(pairs) ? pairs : []).map((p) => Number(p?.pairCreatedAt)).filter((x) => x > 1.5e12 && x <= Date.now() + 60_000);
+      t = ts.length ? Math.min(...ts) : null;
+    }
+    if (t) this.db.prepare("UPDATE markets SET born_at = CASE WHEN born_at IS NULL OR born_at > ? THEN ? ELSE born_at END WHERE mint = ?").run(t, t, mint);
+  }
+
+  /** Fill in creation times for markets listed before born_at existed. A few per call. */
+  async backfillBornAt(max = 15) {
+    const rows = this.db.prepare("SELECT mint FROM markets WHERE listed = 1 AND born_at IS NULL LIMIT ?").all(max) as { mint: string }[];
+    for (const r of rows) {
+      await this.fillBornAt(r.mint).catch(() => {});
+      await new Promise((ok) => setTimeout(ok, 500));
+    }
   }
 
   private reresolving = new Set<string>();

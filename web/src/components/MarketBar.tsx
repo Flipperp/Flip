@@ -56,7 +56,11 @@ export function MarketTable({ onPick, current, filter, q }: { onPick: (m: Market
                   </div>
                   <span className="venue">{venueName[m.venue] ?? m.venue}</span>
                   {m.hl?.routable && <span className="venue hl-venue">HL perp</span>}
-                  {!m.tradable && <span className="venue">{m.reason === "too_thin" ? "close only" : "warming up"}</span>}
+                  {!m.tradable && (
+                    <span className="venue">
+                      {m.reason === "too_thin" ? "close only" : m.reason === "too_new" ? "too new · Arena" : m.reason === "concentrated" ? "concentrated · Arena" : m.reason === "liquidity_drop" ? "paused" : m.reason === "holders_unknown" ? "checking" : "warming up"}
+                    </span>
+                  )}
                 </div>
               </td>
               <td className="num">{price(m.price)}</td>

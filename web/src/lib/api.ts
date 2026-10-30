@@ -25,6 +25,8 @@ export interface Config {
   custody: { minDeposit: number; maxWithdrawal: number; dailyWithdrawalPerWallet: number };
   solUsd: number;
   halted: Record<Mode, string | null>;
+  arena?: { enabled: boolean; roundMs?: number; priceWindowMs?: number; feeBps?: number };
+  risk?: { seasonHours: number; youngHours: number; top10Max: number; liqDropMax: number };
   hl?: { enabled: boolean; testnet?: boolean; apiUrl?: string; builder?: string | null; builderFee?: number; slippage?: number; maxDivergence?: number };
 }
 
@@ -68,6 +70,19 @@ export interface Market {
   roomShort: number;
   sideCap?: number;
   hl?: HlLink | null;
+  risk?: MarketRisk | null;
+}
+
+export interface MarketRisk {
+  poolOpen: boolean;
+  reason: "too_new" | "concentrated" | "holders_unknown" | "liquidity_drop" | null;
+  message: string | null;
+  seasonedAt: number;
+  young: boolean;
+  top10: number | null;
+  liqDrop: number;
+  minHoldMs: number;
+  twapMs: number;
 }
 
 export interface PositionV {
