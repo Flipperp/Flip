@@ -135,7 +135,8 @@ export class ChainOracle {
     const rows = this.db.prepare("SELECT mint FROM markets WHERE listed = 1 AND born_at IS NULL LIMIT ?").all(max) as { mint: string }[];
     for (const r of rows) {
       await this.fillBornAt(r.mint).catch(() => {});
-      await new Promise((ok) => setTimeout(ok, 500));
+      // DexScreener allows about 300 requests a minute; stay well under it.
+      await new Promise((ok) => setTimeout(ok, 400));
     }
   }
 

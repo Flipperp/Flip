@@ -87,9 +87,9 @@ async function main() {
   const bornTimer = demo
     ? null
     : setInterval(() => {
-        oracle.backfillBornAt().catch(() => {});
-      }, 10 * 60_000);
-  if (!demo) oracle.backfillBornAt().catch(() => {});
+        oracle.backfillBornAt(60).catch(() => {});
+      }, 3 * 60_000);
+  if (!demo) oracle.backfillBornAt(60).catch(() => {});
 
   // Live pump.fun launches and graduations. Graduated coins are verified on-chain and listed.
   const pumpFeed =
