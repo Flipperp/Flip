@@ -139,7 +139,12 @@ export interface LinkOptions {
   map: MapEntry[];
   fetchImpl?: typeof fetch;
   now?: () => number;
+  /** Builder address. Hyperliquid rejects orders carrying a builder fee unless it holds >= 100 USDC perps value. */
+  builder?: string;
 }
+
+/** Hyperliquid's minimum perps account value for a builder to collect fees. */
+export const BUILDER_MIN_USDC = 100;
 
 interface LinkMemo {
   good: number;
@@ -153,6 +158,9 @@ interface LinkMemo {
 export class HlLink {
   public lastError: string | null = null;
   public lastPoll: number | null = null;
+  /** Builder account's perps value (USDC), null until known. */
+  public builderValue: number | null = null;
+  private builderCheckedAt = 0;
   private perps = new Map<string, HlPerp>();
   private memo = new Map<string, LinkMemo>();
   private byMint: Map<string, MapEntry>;
@@ -201,6 +209,7 @@ export class HlLink {
       if (!r.ok) throw new Error(`Hyperliquid info ${r.status}`);
       this.ingest(await r.json());
       this.lastError = null;
+      await this.checkBuilder(f);
     } catch (e: any) {
       this.lastError = String(e?.message ?? e);
       // Stale data must not keep links on: after a missed poll window, everything turns off.
@@ -211,6 +220,32 @@ export class HlLink {
           m.state = "checking";
         }
       }
+    }
+  }
+
+  /** True when orders may carry the builder fee without being rejected. */
+  builderReady(): boolean {
+    return !!this.opts.builder && this.builderValue !== null && this.builderValue >= BUILDER_MIN_USDC;
+  }
+
+  private async checkBuilder(f: typeof fetch) {
+    if (!this.opts.builder || this.now() - this.builderCheckedAt < 60_000) return;
+    try {
+      const r = await f(`${this.opts.apiUrl.replace(/\/$/, "")}/info`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ type: "clearinghouseState", user: this.opts.builder }),
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!r.ok) return;
+      const j: any = await r.json();
+      const v = Number(j?.marginSummary?.accountValue);
+      if (Number.isFinite(v)) {
+        this.builderValue = v;
+        this.builderCheckedAt = this.now();
+      }
+    } catch {
+      /* keep last value */
     }
   }
 

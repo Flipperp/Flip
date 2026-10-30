@@ -125,6 +125,24 @@ describe("hyperliquid link", () => {
     expect(link.view(MINT)!.routable).toBe(false);
   });
 
+  it("only enables the builder fee once the builder account holds 100 USDC", async () => {
+    const { link } = setup(bonkSol);
+    (link as any).opts.builder = "0xabc";
+    let value = "40";
+    (link as any).opts.fetchImpl = async (_u: string, init: any) => {
+      const b = JSON.parse(init.body);
+      if (b.type === "clearinghouseState") return new Response(JSON.stringify({ marginSummary: { accountValue: value } }));
+      return new Response(JSON.stringify(meta([{ name: "SOL", markPx: SOL_USD }, { name: "kBONK", markPx: 0.02 }])));
+    };
+    await link.poll();
+    expect(link.builderValue).toBe(40);
+    expect(link.builderReady()).toBe(false);
+    value = "150";
+    (link as any).builderCheckedAt = 0;
+    await link.poll();
+    expect(link.builderReady()).toBe(true);
+  });
+
   it("parses map overrides", () => {
     const m = parseMap("Abc111:kPEPE,Def222:WIF:1," + DEFAULT_MAP[1].mint + ":-");
     expect(m.find((e) => e.mint === "Abc111")).toEqual({ mint: "Abc111", coin: "kPEPE", mult: 1000 });

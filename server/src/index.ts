@@ -49,6 +49,7 @@ async function main() {
         maxDivergence: cfg.hl.maxDivergence,
         confirmChecks: cfg.hl.confirmChecks,
         map: parseMap(cfg.hl.map),
+        builder: cfg.hl.builder || undefined,
       })
     : null;
 
@@ -146,7 +147,7 @@ async function main() {
     staticDir: process.env.STATIC_DIR ?? "../web/dist",
     hl,
     status: () => ({
-      hyperliquid: hl ? { error: hl.lastError, lastPoll: hl.lastPoll, routable: hl.all().filter((l) => l.routable).map((l) => l.coin) } : null,
+      hyperliquid: hl ? { error: hl.lastError, lastPoll: hl.lastPoll, builderValue: hl.builderValue, builderReady: hl.builderReady(), routable: hl.all().filter((l) => l.routable).map((l) => l.coin) } : null,
       oracle: { error: oracle.lastError, tracked: prices.mints().length },
       deposits: deposits ? { error: deposits.lastError } : null,
       withdrawals: withdrawals ? { error: withdrawals.lastError } : null,

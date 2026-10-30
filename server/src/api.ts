@@ -178,8 +178,9 @@ export async function buildApi(d: ApiDeps): Promise<FastifyInstance> {
           enabled: true,
           testnet: cfg.hl.testnet,
           apiUrl: cfg.hl.apiUrl,
-          builder: cfg.hl.builder || null,
-          builderFee: cfg.hl.builder ? cfg.hl.builderFee : 0,
+          // Only advertise the fee once Hyperliquid will accept it; otherwise orders would be rejected.
+          builder: d.hl.builderReady() ? cfg.hl.builder : null,
+          builderFee: d.hl.builderReady() ? cfg.hl.builderFee : 0,
           slippage: cfg.hl.slippage,
           maxDivergence: cfg.hl.maxDivergence,
         }
@@ -188,7 +189,16 @@ export async function buildApi(d: ApiDeps): Promise<FastifyInstance> {
 
   app.get("/api/hl", async () => {
     if (!d.hl) return { enabled: false, links: [] };
-    return { enabled: true, lastError: d.hl.lastError, lastPoll: d.hl.lastPoll, solMark: d.hl.solMark(), links: d.hl.all() };
+    return {
+      enabled: true,
+      lastError: d.hl.lastError,
+      lastPoll: d.hl.lastPoll,
+      solMark: d.hl.solMark(),
+      builder: cfg.hl.builder || null,
+      builderValue: d.hl.builderValue,
+      builderReady: d.hl.builderReady(),
+      links: d.hl.all(),
+    };
   });
 
   app.get("/api/markets", async (req) => {
