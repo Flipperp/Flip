@@ -39,7 +39,8 @@ export default function HlTicket({ market, link, tier, initialSide = "long" }: P
   const takerPct = hl.takerRate !== null ? hl.takerRate * 100 : null;
   const est = mid > 0 ? estLiquidation(mid, side === "long", effLev, maintenanceFrac(link.maxLeverage)) : null;
   const unit = link.mult > 1 ? `1 ${link.coin} = ${link.mult.toLocaleString()} ${market.symbol}` : null;
-  const realBadge = <span className="hl-real">{(import.meta as any).env?.VITE_DEMO === "true" ? "Demo USDC" : "Real USDC"}</span>;
+  const testnet = !!hl.cfg?.testnet;
+  const realBadge = <span className="hl-real">{(import.meta as any).env?.VITE_DEMO === "true" ? "Demo USDC" : testnet ? "Testnet USDC" : "Real USDC"}</span>;
 
   const head = (
     <div className="hl-head">
@@ -88,6 +89,21 @@ export default function HlTicket({ market, link, tier, initialSide = "long" }: P
       <div className="hl-ticket">
         {head}
         <p className="empty-inline">Loading your Hyperliquid account…</p>
+      </div>
+    );
+  }
+
+  if (hl.status === "needs_deposit" && testnet) {
+    return (
+      <div className="hl-ticket">
+        {head}
+        <p className="hl-pitch">This is Hyperliquid testnet. Your test account is empty.</p>
+        <ol className="hl-steps">
+          <li>Open app.hyperliquid-testnet.xyz/drip with this same wallet and claim 1,000 test USDC.</li>
+          <li>Come back here. The ticket updates within a few seconds.</li>
+        </ol>
+        <p className="fine">Hyperliquid only gives test USDC to addresses that have made a deposit on mainnet, of any size.</p>
+        <Acct />
       </div>
     );
   }
